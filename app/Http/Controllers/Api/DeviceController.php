@@ -16,7 +16,7 @@ class DeviceController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Device::with(['customer', 'currentBranch', 'assignedTechnician']);
+        $query = Device::with(['customer', 'currentBranch', 'assignedTechnician', 'creator']);
         
         $user = $request->user();
         if ($user->role === 'branch_manager') {
@@ -142,7 +142,7 @@ class DeviceController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $device->load('images'),
+                'data' => $device->load(['images', 'currentBranch', 'customer', 'creator']),
                 'message' => 'Job created successfully',
             ], 201);
         } catch (\Exception $e) {

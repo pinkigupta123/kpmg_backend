@@ -32,6 +32,7 @@ class StoreDeviceRequest extends FormRequest
             'call_reason' => 'nullable|string|max:255',
             'response_time' => 'nullable|string|max:255',
             'error_codes' => 'nullable|string|max:255',
+            'device_password' => 'nullable|string|max:255',
             'doi' => 'nullable|date',
             'customer_signature' => 'nullable|string',
             'employee_signature' => 'nullable|string',

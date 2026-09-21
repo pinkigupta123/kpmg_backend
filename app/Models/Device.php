@@ -15,7 +15,7 @@ class Device extends Model
         'accessories', 'reported_issue', 'physical_condition', 'condition_checklist',
         'current_branch_id', 'current_branch_name', 'assigned_technician_id', 'assigned_technician_name',
         'status', 'call_type', 'service_type', 'call_reason', 'response_time', 'error_codes',
-        'doi', 'customer_signature', 'employee_signature',
+        'doi', 'device_password', 'customer_signature', 'employee_signature',
         'received_at', 'assigned_at', 'completed_at', 'delivered_at', 'closed_at', 'created_by',
     ];
 

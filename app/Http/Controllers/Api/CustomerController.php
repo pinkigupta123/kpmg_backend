@@ -16,12 +16,14 @@ class CustomerController extends Controller
         $query = Customer::query();
         
         $user = $request->user();
-        if ($user->role !== 'super_admin') {
+        if ($user && $user->role !== 'super_admin') {
             $query->where('branch_id', $user->branch_id);
+        } elseif ($request->filled('branch_id')) {
+            $query->where('branch_id', $request->branch_id);
         }
 
-        if ($request->has('search')) {
-            $search = $request->search;
+        if ($request->filled('search')) {
+            $search = trim($request->search);
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('mobile', 'like', "%{$search}%")
@@ -29,8 +31,8 @@ class CustomerController extends Controller
             });
         }
 
-        $page = $request->page ?? 1;
-        $limit = $request->limit ?? 20;
+        $page = (int) ($request->page ?? 1);
+        $limit = min((int) ($request->limit ?? 50), 500);
         
         $total = clone $query;
         $totalCount = $total->count();
