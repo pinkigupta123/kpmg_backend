@@ -24,7 +24,7 @@ class StoreLeadCustomerRequest extends FormRequest
             'device_model'      => 'nullable|string|max:255',
             'customer_query'    => 'nullable|string',
             'status'            => 'nullable|string|in:new,contacted,follow-up,interested,purchased,closed',
-            'followup_date'     => 'nullable|date_format:Y-m-d',
+            'followup_date'     => 'nullable|date_format:Y-m-d|after_or_equal:yesterday',
             'notes'             => 'nullable|string',
         ];
     }

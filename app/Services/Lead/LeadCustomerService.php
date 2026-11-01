@@ -47,6 +47,7 @@ class LeadCustomerService
         }
 
         $data['executive_id'] = $creator->id;
+        $data['status']       = 'new'; // a new lead always starts as New
         $customer = $this->customerRepository->create($data);
 
         $this->timelineRepository->create([
@@ -55,6 +56,11 @@ class LeadCustomerService
             'remarks'     => 'Enquiry registered for ' . ($customer->interested_product ?? 'laptop services'),
             'created_by'  => $creator->id,
         ]);
+
+        // A follow-up date entered while creating the lead becomes a tracked follow-up too.
+        if (!empty($data['followup_date'])) {
+            app(LeadFollowupService::class)->schedule($customer, $data['followup_date'], null, $creator);
+        }
 
         return [
             'duplicate' => false,

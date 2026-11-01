@@ -31,7 +31,7 @@ class LeadCustomer extends Model
 
     public function followups(): HasMany
     {
-        return $this->hasMany(LeadFollowup::class, 'customer_id')->orderBy('scheduled_for', 'desc')->orderBy('id', 'desc');
+        return $this->hasMany(LeadFollowup::class, 'customer_id')->orderByRaw("status = 'pending' desc")->orderBy('id', 'desc');
     }
 
     /**

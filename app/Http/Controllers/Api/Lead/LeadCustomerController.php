@@ -124,7 +124,7 @@ class LeadCustomerController extends Controller
     public function addFollowup(Request $request, int $id): JsonResponse
     {
         $request->validate([
-            'followup_date' => 'required|date_format:Y-m-d',
+            'followup_date' => 'required|date_format:Y-m-d|after_or_equal:yesterday',
             'remarks'       => 'nullable|string',
             'status'        => 'nullable|string|in:new,contacted,follow-up,interested,purchased,closed',
         ]);
