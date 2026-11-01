@@ -122,12 +122,8 @@ class LeadCustomerService
         $followups = app(LeadFollowupService::class);
         $followups->schedule($customer, $data['followup_date'], $data['remarks'] ?? null, $editor);
 
-        $updateData = ['status' => $data['status'] ?? $customer->status];
-        if (!empty($data['remarks'])) {
-            $updateData['notes'] = $data['remarks'];
-        }
-
-        $updatedCustomer = $this->customerRepository->update($id, $updateData);
+        // The plan text lives on the follow-up record itself; the lead's Notes field is left alone.
+        $updatedCustomer = $this->customerRepository->update($id, ['status' => $data['status'] ?? $customer->status]);
 
         if (isset($data['status']) && $customer->status !== $data['status']) {
             $this->timelineRepository->create([
@@ -140,6 +136,41 @@ class LeadCustomerService
 
         if (in_array($updatedCustomer->status, ['purchased', 'closed'], true)) {
             $followups->cancelPending(LeadCustomer::find($id), $editor, true);
+        }
+
+        return $this->customerRepository->find($id);
+    }
+
+    /**
+     * Log what happened on a call / visit (no date involved): a timeline note plus an optional status change.
+     * Scheduling the next follow-up is a separate action (addFollowup).
+     */
+    public function addActivity(LeadUser $editor, int $id, string $note, ?string $status = null): LeadCustomer
+    {
+        $customer = $this->customerRepository->find($id);
+        if (!$customer) {
+            throw new \InvalidArgumentException('Customer not found.');
+        }
+
+        $this->timelineRepository->create([
+            'customer_id' => $id,
+            'action'      => 'Update Added',
+            'remarks'     => $note,
+            'created_by'  => $editor->id,
+        ]);
+
+        if ($status && $status !== $customer->status) {
+            $this->customerRepository->update($id, ['status' => $status]);
+            $this->timelineRepository->create([
+                'customer_id' => $id,
+                'action'      => 'Status Updated',
+                'remarks'     => 'Status updated from ' . strtoupper($customer->status) . ' to ' . strtoupper($status),
+                'created_by'  => $editor->id,
+            ]);
+
+            if (in_array($status, ['purchased', 'closed'], true)) {
+                app(LeadFollowupService::class)->cancelPending(LeadCustomer::find($id), $editor, true);
+            }
         }
 
         return $this->customerRepository->find($id);

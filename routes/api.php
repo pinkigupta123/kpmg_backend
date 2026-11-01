@@ -143,6 +143,7 @@ Route::prefix('lead')->group(function () {
         Route::put('/customers/{id}',                [LeadCustomerController::class, 'update']);
         Route::delete('/customers/{id}',             [LeadCustomerController::class, 'destroy']);
         Route::post('/customers/{id}/follow-up',     [LeadCustomerController::class, 'addFollowup']);
+        Route::post('/customers/{id}/activity',      [LeadCustomerController::class, 'addActivity']);
         Route::post('/customers/{id}/timeline',      [LeadCustomerController::class, 'addTimelineEvent']);
     });
 });

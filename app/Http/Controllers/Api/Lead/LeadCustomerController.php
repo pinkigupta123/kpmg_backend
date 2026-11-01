@@ -140,6 +140,30 @@ class LeadCustomerController extends Controller
         }
     }
 
+    /** POST /lead/customers/{id}/activity — log what happened (note + optional status). */
+    public function addActivity(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'note'   => 'required|string|max:2000',
+            'status' => 'nullable|string|in:new,contacted,follow-up,interested,purchased,closed',
+        ]);
+
+        /** @var \App\Models\LeadUser $user */
+        $user     = $request->user();
+        $customer = $this->customerService->find($id);
+
+        if (!$customer) {
+            return response()->json(['message' => 'Customer lead not found.'], 404);
+        }
+        if ($user->role === 'sales_executive' && $customer->executive_id != $user->id) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $updated = $this->customerService->addActivity($user, $id, $data['note'], $data['status'] ?? null);
+
+        return response()->json(new LeadCustomerResource($updated->load(['executive', 'timelines.creator', 'followups.resolver'])));
+    }
+
     public function addTimelineEvent(Request $request, int $id): JsonResponse
     {
         $request->validate([
