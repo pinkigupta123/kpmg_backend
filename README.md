@@ -1,60 +1,181 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
-
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
-
-## About Laravel
-
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
-
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
-
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-## Laravel Sponsors
-
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
-
-### Premium Partners
-
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
 # kpmg_backend
+
+Laravel 12 (PHP ^8.2) API backend with two modules, both authenticated via Laravel Sanctum:
+
+- **Repair / service module** — `employees`, `branches`, `customers`, `devices`, `transfers`, `stock_items`, `service_reports`, etc.
+- **Lead management module** — `lead_users`, `lead_customers`, `lead_customer_timelines` (isolated from `employees`).
+
+## User roles
+
+| Table | Roles |
+|---|---|
+| `employees` | `super_admin`, `branch_manager`, `stock_manager`, `employee` |
+| `lead_users` | `super_admin`, `sales_executive` |
+
+---
+
+## Local development
+
+```bash
+composer install
+cp .env.example .env
+php artisan key:generate
+touch database/database.sqlite        # if DB_CONNECTION=sqlite
+php artisan migrate --seed            # runs DatabaseSeeder (DEMO data, dev only)
+php artisan serve
+```
+
+> `DatabaseSeeder` loads fake customers/devices and **well-known demo passwords**
+> (e.g. `Admin@123`, `Password@123`). **Never run it in production.**
+
+---
+
+## Production deployment
+
+### 0. Requirements
+- PHP 8.2+ with extensions: `mbstring`, `openssl`, `pdo_mysql` (or `pdo_pgsql`), `tokenizer`, `xml`, `ctype`, `json`, `fileinfo`
+- Composer 2, MySQL 8 / PostgreSQL (do not use SQLite in prod)
+- Web server (Nginx/Apache) with document root pointing to `public/`
+
+### 1. First-time setup
+
+```bash
+git clone <repo-url> kpmg_backend && cd kpmg_backend
+composer install --no-dev --optimize-autoloader
+cp .env.example .env
+php artisan key:generate
+```
+
+Edit `.env` (see [Environment variables](#environment-variables)), then create the empty database.
+
+### 2. Create tables
+
+```bash
+php artisan migrate --force
+```
+
+`--force` is required in production (otherwise Laravel prompts for confirmation and CI/CD hangs).
+This also creates the `sessions`, `cache` and `jobs` tables used by the default drivers.
+
+### 3. Seed the base users (first deploy only)
+
+```bash
+php artisan db:seed --class=ProductionSeeder --force
+```
+
+Creates one user per role (safe to re-run). **Starting password for all: `ChangeMe@123`** — every user must change it on first login.
+
+| Table | Role | Login email | Mobile |
+|---|---|---|---|
+| employees | super_admin | admin@kpng.com | 9000000001 |
+| employees | branch_manager | manager@kpng.com | 9000000002 |
+| employees | stock_manager | stock@kpng.com | 9000000003 |
+| employees | employee | employee@kpng.com | 9000000004 |
+| lead_users | super_admin | leadadmin@kpng.com | 9000000011 |
+| lead_users | sales_executive | sales@kpng.com | 9000000012 |
+
+A placeholder branch `BR-001 "Head Office"` is also created — edit it after logging in.
+Company settings (name, GST, etc.) are not seeded; add them to the `settings` table yourself.
+
+### 4. Optimise & link storage
+
+```bash
+php artisan storage:link              # first deploy only
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+Make `storage/` and `bootstrap/cache/` writable by the web user:
+
+```bash
+chown -R www-data:www-data storage bootstrap/cache
+chmod -R 775 storage bootstrap/cache
+```
+
+### 5. Queue worker & scheduler (if used)
+
+`QUEUE_CONNECTION=database` needs a worker running under Supervisor/systemd:
+
+```bash
+php artisan queue:work --tries=3 --timeout=90
+```
+
+Scheduler cron entry:
+
+```
+* * * * * cd /path/to/kpmg_backend && php artisan schedule:run >> /dev/null 2>&1
+```
+
+### 6. Smoke test
+- `GET https://<your-domain>/up` returns 200 (health check)
+- Log in as each seeded role and change the password
+- Check `storage/logs/laravel.log` is clean
+
+---
+
+## Updating an existing deployment
+
+Run on every release, in this order:
+
+```bash
+# 1. Back up the database first
+mysqldump -u <user> -p <db_name> > backup_$(date +%F_%H%M).sql
+
+php artisan down                                   # maintenance mode
+git pull origin main
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force                        # new tables/columns only
+php artisan config:cache && php artisan route:cache && php artisan view:cache
+php artisan queue:restart                          # if a worker is running
+php artisan up
+```
+
+**Do not** run `ProductionSeeder` again unless you are adding a new role. **Never** run `db:seed` (default),
+`migrate:fresh`, `migrate:refresh` or `migrate:reset` in production — they load demo data or drop all tables.
+
+### Rollback
+1. `php artisan down`
+2. Restore the SQL backup, or `php artisan migrate:rollback --step=1 --force` for a single bad migration
+3. `git checkout <previous-tag>` + `composer install --no-dev`, re-cache config, `php artisan up`
+
+---
+
+## Environment variables
+
+| Key | Production value |
+|---|---|
+| `APP_NAME` | Your app name |
+| `APP_ENV` | `production` |
+| `APP_DEBUG` | `false` (**must** be false) |
+| `APP_URL` | `https://your-domain` |
+| `APP_KEY` | generated by `php artisan key:generate` (never change after launch) |
+| `DB_CONNECTION` | `mysql` or `pgsql` |
+| `DB_HOST` / `DB_PORT` / `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | your database credentials |
+| `LOG_LEVEL` | `warning` or `error` |
+| `SESSION_DRIVER` / `QUEUE_CONNECTION` / `CACHE_STORE` | `database` (default) or `redis` |
+| `MAIL_*` | real SMTP settings (default `log` sends nothing) |
+
+If the frontend runs on another origin, also configure CORS (`config/cors.php`) and
+`SANCTUM_STATEFUL_DOMAINS` accordingly.
+
+---
+
+## Rules for the database
+
+1. **Never edit a migration that has already run in production.** Create a new one: `php artisan make:migration add_x_to_y_table`.
+2. Seeders for production must be **idempotent** (`firstOrCreate` / `updateOrCreate`), never plain `create()`.
+3. Keep demo data in `DatabaseSeeder` (dev/staging only); keep prod bootstrap data in `ProductionSeeder`.
+4. Never commit `.env` or real passwords.
+
+## Deployment checklist
+
+- [ ] `.env` has `APP_ENV=production`, `APP_DEBUG=false`, real DB credentials
+- [ ] Database backed up
+- [ ] `composer install --no-dev --optimize-autoloader`
+- [ ] `php artisan migrate --force`
+- [ ] `ProductionSeeder` run once; credentials saved and passwords changed
+- [ ] `config:cache`, `route:cache`, `view:cache`, `storage:link`
+- [ ] `storage/` and `bootstrap/cache/` writable
+- [ ] Queue worker and scheduler running (if used)
+- [ ] HTTPS enabled, document root is `public/`
