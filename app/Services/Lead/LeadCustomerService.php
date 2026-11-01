@@ -83,13 +83,24 @@ class LeadCustomerService
             ]);
         }
 
-        if (isset($data['followup_date']) && $oldCustomer->followup_date !== $data['followup_date']) {
-            $this->timelineRepository->create([
-                'customer_id' => $customer->id,
-                'action'      => 'Follow-up Added',
-                'remarks'     => 'Follow-up scheduled on ' . $customer->followup_date,
-                'created_by'  => $editor->id,
-            ]);
+        // Follow-up history: scheduling / rescheduling / clearing the date is tracked per follow-up.
+        $followups = app(LeadFollowupService::class);
+        if (array_key_exists('followup_date', $data)) {
+            $newDate = $data['followup_date'] ? substr((string) $data['followup_date'], 0, 10) : null;
+            $oldDate = $oldCustomer->followup_date ? substr((string) $oldCustomer->followup_date, 0, 10) : null;
+            if ($newDate !== $oldDate) {
+                $fresh = LeadCustomer::find($customer->id);
+                if ($newDate) {
+                    $followups->schedule($fresh, $newDate, null, $editor);
+                } else {
+                    $followups->cancelPending($fresh, $editor, true);
+                }
+            }
+        }
+
+        // A closed / purchased lead has nothing left to follow up.
+        if (in_array($customer->status, ['purchased', 'closed'], true)) {
+            $followups->cancelPending(LeadCustomer::find($customer->id), $editor);
         }
 
         return $customer;
@@ -107,23 +118,16 @@ class LeadCustomerService
             throw new \InvalidArgumentException('Customer not found.');
         }
 
-        $updateData = [
-            'followup_date' => $data['followup_date'],
-            'status'        => $data['status'] ?? $customer->status,
-        ];
+        // creates the follow-up row (older pending ones become "rescheduled"), sets followup_date, logs the timeline
+        $followups = app(LeadFollowupService::class);
+        $followups->schedule($customer, $data['followup_date'], $data['remarks'] ?? null, $editor);
 
+        $updateData = ['status' => $data['status'] ?? $customer->status];
         if (!empty($data['remarks'])) {
             $updateData['notes'] = $data['remarks'];
         }
 
         $updatedCustomer = $this->customerRepository->update($id, $updateData);
-
-        $this->timelineRepository->create([
-            'customer_id' => $id,
-            'action'      => 'Follow-up Added',
-            'remarks'     => $data['remarks'] ?? 'Follow-up rescheduled',
-            'created_by'  => $editor->id,
-        ]);
 
         if (isset($data['status']) && $customer->status !== $data['status']) {
             $this->timelineRepository->create([
@@ -134,7 +138,11 @@ class LeadCustomerService
             ]);
         }
 
-        return $updatedCustomer;
+        if (in_array($updatedCustomer->status, ['purchased', 'closed'], true)) {
+            $followups->cancelPending(LeadCustomer::find($id), $editor, true);
+        }
+
+        return $this->customerRepository->find($id);
     }
 
     public function addTimelineEvent(LeadUser $creator, int $customerId, string $action, ?string $remarks = null): void

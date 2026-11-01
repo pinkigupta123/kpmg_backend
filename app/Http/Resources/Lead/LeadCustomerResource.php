@@ -28,6 +28,7 @@ class LeadCustomerResource extends JsonResource
             'updated_at'         => $this->updated_at->toIso8601String(),
             'executive'          => new LeadUserResource($this->whenLoaded('executive')),
             'timelines'          => LeadCustomerTimelineResource::collection($this->whenLoaded('timelines')),
+            'followups'          => LeadFollowupResource::collection($this->whenLoaded('followups')),
         ];
     }
 }

@@ -34,7 +34,7 @@ class LeadCustomerController extends Controller
             return $this->exportCSV($request);
         }
 
-        $filters = $request->only(['search', 'status', 'sort', 'executive_id']);
+        $filters = $request->only(['search', 'status', 'sort', 'executive_id', 'branch']);
         $perPage  = (int) $request->input('per_page', 15);
 
         // Admin can filter by executive_id; sales executive always restricted to own leads

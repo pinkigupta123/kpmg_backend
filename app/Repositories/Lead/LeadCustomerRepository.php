@@ -16,6 +16,14 @@ class LeadCustomerRepository implements LeadCustomerRepositoryInterface
             $query->where('executive_id', $filters['executive_id']);
         }
 
+        // Branch filter: leads whose executive belongs to the given branch
+        if (!empty($filters['branch'])) {
+            $branch = $filters['branch'];
+            $query->whereHas('executive', function ($q) use ($branch) {
+                $q->where('branch', $branch);
+            });
+        }
+
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
         }
@@ -36,7 +44,7 @@ class LeadCustomerRepository implements LeadCustomerRepositoryInterface
 
     public function find(int $id): ?LeadCustomer
     {
-        return LeadCustomer::with(['executive', 'timelines.creator'])->find($id);
+        return LeadCustomer::with(['executive', 'timelines.creator', 'followups.resolver'])->find($id);
     }
 
     public function findByMobile(string $mobile): ?LeadCustomer

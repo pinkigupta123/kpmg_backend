@@ -29,6 +29,11 @@ class LeadCustomer extends Model
         'notes',
     ];
 
+    public function followups(): HasMany
+    {
+        return $this->hasMany(LeadFollowup::class, 'customer_id')->orderBy('scheduled_for', 'desc')->orderBy('id', 'desc');
+    }
+
     /**
      * Get the sales executive who manages this lead.
      */

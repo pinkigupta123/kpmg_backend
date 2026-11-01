@@ -102,6 +102,7 @@ Route::middleware('auth:sanctum')->group(function () {
 use App\Http\Controllers\Api\Lead\LeadAuthController;
 use App\Http\Controllers\Api\Lead\LeadCustomerController;
 use App\Http\Controllers\Api\Lead\LeadExecutiveController;
+use App\Http\Controllers\Api\Lead\LeadFollowupController;
 
 Route::prefix('lead')->group(function () {
 
@@ -125,6 +126,13 @@ Route::prefix('lead')->group(function () {
         Route::get('/executives/{id}',               [LeadExecutiveController::class, 'show']);
         Route::put('/executives/{id}',               [LeadExecutiveController::class, 'update']);
         Route::delete('/executives/{id}',            [LeadExecutiveController::class, 'destroy']);
+
+        // Follow-ups (history, mark done) + push device registration
+        Route::get('/followups/summary',             [LeadFollowupController::class, 'summary']);
+        Route::get('/followups',                     [LeadFollowupController::class, 'index']);
+        Route::post('/followups/{id}/complete',      [LeadFollowupController::class, 'complete']);
+        Route::post('/device-token',                 [LeadFollowupController::class, 'registerDevice']);
+        Route::delete('/device-token',               [LeadFollowupController::class, 'unregisterDevice']);
 
         // Customers
         Route::get('/customers/search',              [LeadCustomerController::class, 'search']);
