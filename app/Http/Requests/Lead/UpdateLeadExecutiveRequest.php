@@ -26,7 +26,7 @@ class UpdateLeadExecutiveRequest extends FormRequest
             'designation' => 'nullable|string|max:255',
             'permissions'   => 'nullable|array',
             'permissions.*' => ['string', Rule::in(LeadPermissions::keys())],
-            'status'      => 'required|string|in:active,inactive',
+            'status'      => 'sometimes|string|in:active,inactive',
             'password'    => 'nullable|string|min:6',
         ];
     }

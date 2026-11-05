@@ -103,6 +103,7 @@ class LeadCustomerController extends Controller
                 'name'   => 'nullable|string|max:255',
                 'mobile' => 'required|string|regex:/^[0-9]{10}$/',
                 'email'  => 'nullable|email|max:255',
+                'lead_source' => 'nullable|string|max:100',
             ], ['mobile.regex' => 'Mobile number must be a valid 10-digit number.']);
 
             if ($validator->fails()) {
@@ -113,7 +114,8 @@ class LeadCustomerController extends Controller
             $data = $validator->validated();
             // Name is optional in a bulk row; fall back to the number so the lead is still identifiable
             $data['name'] = trim((string) ($data['name'] ?? '')) !== '' ? $data['name'] : $data['mobile'];
-            if ($request->filled('lead_source')) {
+            // each row carries its own source; the optional batch-level value is only a fallback
+            if (empty($data['lead_source']) && $request->filled('lead_source')) {
                 $data['lead_source'] = $request->input('lead_source');
             }
 
@@ -262,10 +264,18 @@ class LeadCustomerController extends Controller
         return response()->json($stats);
     }
 
-    protected function exportCSV(Request $request): Response
+    protected function exportCSV(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        $filters   = $request->only(['search', 'status', 'sort']);
+        $filters   = $request->only(['search', 'status', 'sort', 'executive_id', 'branch']);
         $customers = LeadCustomer::query()->with('executive');
+
+        if (!empty($filters['executive_id'])) {
+            $customers->where('executive_id', $filters['executive_id']);
+        }
+        if (!empty($filters['branch'])) {
+            $branch = $filters['branch'];
+            $customers->whereHas('executive', fn ($q) => $q->where('branch', $branch));
+        }
 
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $customers->where('status', $filters['status']);
@@ -295,7 +305,7 @@ class LeadCustomerController extends Controller
             $file = fopen('php://output', 'w');
             fputcsv($file, [
                 'ID', 'Customer Name', 'Mobile Number', 'Email Address',
-                'City', 'Company', 'Interested Product', 'Device Brand',
+                'City', 'Company', 'Lead Source', 'Interested Product', 'Device Brand',
                 'Device Model', 'Customer Query', 'Status', 'Follow-up Date',
                 'Notes', 'Created By (Executive)', 'Created At',
             ]);
@@ -308,6 +318,7 @@ class LeadCustomerController extends Controller
                     $cust->email              ?? 'N/A',
                     $cust->city               ?? 'N/A',
                     $cust->company            ?? 'N/A',
+                    $cust->lead_source        ?? 'N/A',
                     $cust->interested_product ?? 'N/A',
                     $cust->device_brand       ?? 'N/A',
                     $cust->device_model       ?? 'N/A',
