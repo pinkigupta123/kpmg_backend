@@ -5,6 +5,10 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\BranchController;
+use App\Http\Controllers\Api\CompanyController;
+use App\Http\Controllers\Api\OptionController;
+use App\Http\Controllers\Api\InvoiceController;
+use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DeviceController;
@@ -33,6 +37,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // Dashboard
     Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
 
+    // Companies
+    Route::get('/companies', [CompanyController::class, 'index']);
+    Route::get('/companies/{id}', [CompanyController::class, 'show']);
+    Route::post('/companies', [CompanyController::class, 'store'])->middleware('role:super_admin');
+    Route::put('/companies/{id}', [CompanyController::class, 'update'])->middleware('role:super_admin');
+    Route::patch('/companies/{id}/status', [CompanyController::class, 'updateStatus'])->middleware('role:super_admin');
+
     // Branches
     Route::get('/branches', [BranchController::class, 'index']);
     Route::get('/branches/{id}', [BranchController::class, 'show']);
@@ -60,7 +71,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/devices', [DeviceController::class, 'store']);
     Route::put('/devices/{id}', [DeviceController::class, 'update']);
     Route::patch('/devices/{id}/status', [DeviceController::class, 'updateStatus']);
-    Route::post('/devices/{id}/assign', [DeviceController::class, 'assignTechnician'])->middleware('role:super_admin,branch_manager');
+    Route::post('/devices/{id}/assign', [DeviceController::class, 'assignTechnician']); // authorised in controller (admin/manager/assigned engineer)
+    Route::get('/devices/{id}/credentials', [DeviceController::class, 'credentials']);
     Route::post('/devices/{id}/notes', [DeviceController::class, 'addNote']);
 
     // Service Reports
@@ -77,10 +89,27 @@ Route::middleware('auth:sanctum')->group(function () {
     // Inventory
     Route::get('/inventory', [InventoryController::class, 'index']);
     Route::get('/inventory/history', [InventoryController::class, 'history']);
+    Route::get('/inventory/transactions', [InventoryController::class, 'transactions']);
+    Route::post('/inventory/invoice', [InventoryController::class, 'storeInvoice'])->middleware('role:super_admin,branch_manager,stock_manager');
+    Route::get('/inventory/{id}', [InventoryController::class, 'show'])->whereNumber('id');
     Route::post('/inventory', [InventoryController::class, 'store'])->middleware('role:super_admin,branch_manager,stock_manager');
-    Route::put('/inventory/{id}', [InventoryController::class, 'update'])->middleware('role:super_admin,branch_manager,stock_manager');
+    Route::put('/inventory/{id}', [InventoryController::class, 'update'])->middleware('role:super_admin'); // edit: Super Admin only
     Route::post('/inventory/usage', [InventoryController::class, 'usage']);
     Route::get('/inventory/usage/device/{deviceId}', [InventoryController::class, 'usageByDevice']);
+
+    // Dropdown options (categories etc.) - read by everyone, managed by Super Admin, never deleted
+    Route::get('/options', [OptionController::class, 'index']);
+    Route::post('/options', [OptionController::class, 'store'])->middleware('role:super_admin');
+    Route::put('/options/{id}', [OptionController::class, 'update'])->middleware('role:super_admin');
+    Route::patch('/options/{id}/status', [OptionController::class, 'updateStatus'])->middleware('role:super_admin');
+
+    // Invoices (GST / Non-GST) and revenue
+    Route::get('/invoices', [InvoiceController::class, 'index']);
+    Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
+    Route::post('/invoices', [InvoiceController::class, 'store'])->middleware('role:super_admin,branch_manager');
+    Route::get('/devices/{id}/invoice-draft', [InvoiceController::class, 'draft'])->middleware('role:super_admin,branch_manager');
+    Route::get('/reports/revenue', [ReportController::class, 'revenue']);
+    Route::get('/reports/revenue-jobs', [ReportController::class, 'revenueJobs']);
 
     // Audit Logs
     Route::get('/audit-logs', [AuditLogController::class, 'index'])->middleware('role:super_admin,branch_manager');

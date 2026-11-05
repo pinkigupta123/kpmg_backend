@@ -12,12 +12,13 @@ class StockItem extends Model
         'item_code', 'name', 'part_number', 'category', 'compatible_devices',
         'brand', 'quantity', 'reorder_level', 'unit_cost', 'selling_price',
         'supplier', 'branch_id', 'branch_name', 'location', 'warranty',
-        'condition', 'unit', 'slip_photo_path', 'slip_number', 'added_by',
+        'condition', 'unit', 'slip_photo_path', 'slip_number', 'invoice_date', 'invoice_id', 'added_by',
     ];
 
     protected $casts = [
         'unit_cost' => 'decimal:2',
         'selling_price' => 'decimal:2',
+        'invoice_date' => 'date:Y-m-d',
     ];
 
     public function branch(): BelongsTo

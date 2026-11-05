@@ -10,16 +10,24 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Device extends Model
 {
     protected $fillable = [
+        'company_id', 'final_amount', 'final_amount_note', 'fixed_amount', 'estimated_amount', 'estimate_remarks', 'receiving_address', 'device_user_id',
         'job_number', 'receipt_number', 'customer_id', 'customer_name', 'customer_mobile',
         'type', 'brand', 'model', 'serial_number', 'processor', 'ram', 'storage',
         'accessories', 'reported_issue', 'physical_condition', 'condition_checklist',
         'current_branch_id', 'current_branch_name', 'assigned_technician_id', 'assigned_technician_name',
         'status', 'call_type', 'service_type', 'call_reason', 'response_time', 'error_codes',
-        'doi', 'device_password', 'customer_signature', 'employee_signature',
+        'doi', 'device_password',
         'received_at', 'assigned_at', 'completed_at', 'delivered_at', 'closed_at', 'created_by',
     ];
 
+    // Device password is stored encrypted and never serialised; use the credentials endpoint.
+    protected $hidden = ['device_password'];
+
     protected $casts = [
+        'device_password' => 'encrypted',
+        'fixed_amount' => 'decimal:2',
+        'final_amount' => 'decimal:2',
+        'estimated_amount' => 'decimal:2',
         'accessories' => 'array',
         'condition_checklist' => 'array',
         'received_at' => 'datetime',
@@ -29,6 +37,11 @@ class Device extends Model
         'closed_at' => 'datetime',
         'doi' => 'date',
     ];
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
 
     public function customer(): BelongsTo
     {

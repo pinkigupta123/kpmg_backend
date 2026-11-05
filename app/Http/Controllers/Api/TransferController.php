@@ -20,8 +20,8 @@ class TransferController extends Controller
         $user = $request->user();
         if ($user->role !== 'super_admin') {
             $query->where(function($q) use ($user) {
-                $q->where('source_branch_id', $user->branch_id)
-                  ->orWhere('destination_branch_id', $user->branch_id);
+                $q->whereIn('source_branch_id', $user->allBranchIds())
+                  ->orWhereIn('destination_branch_id', $user->allBranchIds());
             });
         }
 

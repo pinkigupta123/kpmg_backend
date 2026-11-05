@@ -14,15 +14,17 @@ class EmployeeController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Employee::with('branch');
+        $query = Employee::with(['branch', 'branches']);
         
         $user = $request->user();
+        // an employee belongs to a branch if it is their primary branch OR one of their extra assignments
+        $inBranches = fn ($ids) => fn ($q) => $q->whereIn('branch_id', $ids)->orWhereHas('branches', fn ($b) => $b->whereIn('branches.id', $ids));
         if ($user->role !== 'super_admin') {
-            $query->where('branch_id', $user->branch_id);
+            $query->where($inBranches($user->allBranchIds()));
         }
 
-        if ($request->has('branch_id')) {
-            $query->where('branch_id', $request->branch_id);
+        if ($request->filled('branch_id')) {
+            $query->where($inBranches([(int) $request->branch_id]));
         }
 
         $employees = $query->orderBy('name', 'asc')->get();
@@ -36,7 +38,7 @@ class EmployeeController extends Controller
 
     public function show($id)
     {
-        $employee = Employee::with('branch')->findOrFail($id);
+        $employee = Employee::with(['branch', 'branches'])->findOrFail($id);
         
         return response()->json([
             'success' => true,
@@ -51,12 +53,15 @@ class EmployeeController extends Controller
         
         $branch = Branch::findOrFail($data['branch_id']);
         $data['branch_name'] = $branch->name;
+        $data['company_id'] = $branch->company_id;
         
         $password = $request->password ?? 'User@123';
         $data['password'] = Hash::make($password);
         $data['joined_at'] = now();
 
+        unset($data['branch_ids']);
         $employee = Employee::create($data);
+        $employee->branches()->sync($this->branchSet($request, $data['branch_id']));
         
         $branch->increment('total_employees');
         
@@ -64,7 +69,7 @@ class EmployeeController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $employee,
+            'data' => $employee->load(['branch', 'branches']),
             'message' => 'Employee created successfully',
         ], 201);
     }
@@ -100,14 +105,30 @@ class EmployeeController extends Controller
             $branch->increment('total_employees');
         }
 
+        unset($data['branch_ids'], $data['branches']);
         $employee->update($data);
+        if ($request->has('branch_ids') || isset($data['branch_id'])) {
+            $employee->branches()->sync($this->branchSet($request, $employee->branch_id));
+        }
         AuditService::log('update', 'employee', $employee->id, Employee::class);
 
         return response()->json([
             'success' => true,
-            'data' => $employee,
+            'data' => $employee->load(['branch', 'branches']),
             'message' => 'Employee updated successfully',
         ]);
+    }
+
+    /** Primary branch + any extra branches; a branch manager may only hand out branches they themselves have. */
+    private function branchSet(Request $request, $primary): array
+    {
+        $extra = collect($request->input('branch_ids', []))->map(fn ($i) => (int) $i);
+        $user = $request->user();
+        if ($user->role !== 'super_admin') {
+            $extra = $extra->filter(fn ($i) => in_array($i, $user->allBranchIds(), true));
+        }
+
+        return $extra->push((int) $primary)->unique()->values()->all();
     }
 
     public function updateStatus(Request $request, $id)

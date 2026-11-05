@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreDeviceRequest;
 use App\Models\Device;
 use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Employee;
 use Illuminate\Http\Request;
@@ -16,11 +17,11 @@ class DeviceController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Device::with(['customer', 'currentBranch', 'assignedTechnician', 'creator']);
+        $query = Device::with(['customer', 'currentBranch', 'company', 'assignedTechnician', 'creator']);
         
         $user = $request->user();
         if ($user->role === 'branch_manager') {
-            $query->where('current_branch_id', $user->branch_id);
+            $query->whereIn('current_branch_id', $user->allBranchIds());
         } elseif ($user->role === 'employee') {
             $query->where(function ($q) use ($user) {
                 $q->where('assigned_technician_id', $user->id)
@@ -28,8 +29,12 @@ class DeviceController extends Controller
             });
         }
 
-        if ($request->has('branch_id') && $user->role === 'super_admin') {
+        if ($request->filled('branch_id') && $user->canAccessBranch($request->branch_id)) {
             $query->where('current_branch_id', $request->branch_id);
+        }
+
+        if ($request->filled('created_by')) {
+            $query->where('created_by', $request->created_by);
         }
 
         if ($request->has('technician_id')) {
@@ -38,6 +43,22 @@ class DeviceController extends Controller
 
         if ($request->has('status')) {
             $query->where('status', $request->status);
+        }
+
+        // Dashboard drill-down scopes
+        if ($request->filled('scope')) {
+            match ($request->scope) {
+                'open' => $query->whereNotIn('status', ['delivered', 'closed']),
+                'active' => $query->whereIn('status', ['diagnosis_in_progress', 'repair_in_progress']),
+                'completed' => $query->whereIn('status', ['repair_completed', 'ready_for_delivery', 'delivered', 'closed']),
+                default => null,
+            };
+        }
+
+        // SLA filter: open jobs (not delivered/closed) created at least N days ago
+        if ($request->filled('min_age_days')) {
+            $query->whereNotIn('status', ['delivered', 'closed'])
+                  ->where('created_at', '<=', now()->subDays((int) $request->min_age_days));
         }
 
         if ($request->has('search')) {
@@ -76,7 +97,7 @@ class DeviceController extends Controller
 
     public function show($id)
     {
-        $device = Device::with(['customer', 'images', 'notes', 'statusHistory', 'stockUsages'])->findOrFail($id);
+        $device = Device::with(['customer', 'company', 'currentBranch', 'assignedTechnician', 'creator', 'images', 'notes', 'statusHistory', 'stockUsages'])->findOrFail($id);
         
         return response()->json([
             'success' => true,
@@ -93,7 +114,26 @@ class DeviceController extends Controller
             $customer = Customer::findOrFail($data['customer_id']);
             $branch = Branch::findOrFail($data['branch_id']);
             
-            $data['job_number'] = JobNumberService::generate();
+            $user = $request->user();
+            // a job sheet can only be created in a branch the user is assigned to
+            abort_unless($user->canAccessBranch($branch->id), 403, 'You are not assigned to this branch.');
+            $company = $branch->company ?? Company::findOrFail($user->company_id);
+            [, $data['job_number']] = JobNumberService::generate($company, $user->name);
+            $data['company_id'] = $company->id;
+
+            // Default assigned engineer = job creator
+            $technician = isset($data['assigned_technician_id'])
+                ? Employee::findOrFail($data['assigned_technician_id'])
+                : $user;
+            // the engineer must work in the selected branch (the creator is always allowed)
+            abort_unless(
+                (int) $technician->id === (int) $user->id || $technician->canAccessBranch($branch->id),
+                422,
+                'The assigned engineer does not work in the selected branch.'
+            );
+            $data['assigned_technician_id'] = $technician->id;
+            $data['assigned_technician_name'] = $technician->name;
+            $data['assigned_at'] = now();
             $data['receipt_number'] = JobNumberService::generateReceipt();
             $data['customer_name'] = $customer->name;
             $data['customer_mobile'] = $customer->mobile;
@@ -142,7 +182,7 @@ class DeviceController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $device->load(['images', 'currentBranch', 'customer', 'creator']),
+                'data' => $device->load(['images', 'currentBranch', 'company', 'customer', 'creator', 'assignedTechnician']),
                 'message' => 'Job created successfully',
             ], 201);
         } catch (\Exception $e) {
@@ -160,7 +200,9 @@ class DeviceController extends Controller
     public function update(StoreDeviceRequest $request, $id)
     {
         $device = Device::findOrFail($id);
-        $device->update($request->validated());
+        $device->update(collect($request->validated())->except([
+            'assigned_technician_id', 'device_images', 'condition_images', 'branch_id', 'customer_id',
+        ])->all());
         
         AuditService::log('update', 'device', $device->id, Device::class);
 
@@ -173,7 +215,12 @@ class DeviceController extends Controller
 
     public function updateStatus(Request $request, $id)
     {
-        $request->validate(['status' => 'required|string']);
+        $request->validate([
+            'status' => 'required|string',
+            // closing a job requires the amount actually charged to the customer
+            'final_amount' => 'required_if:status,closed|nullable|numeric|min:0',
+            'final_amount_note' => 'nullable|string|max:1000',
+        ]);
         
         $device = Device::findOrFail($id);
         $oldStatus = $device->status;
@@ -195,6 +242,8 @@ class DeviceController extends Controller
             $device->delivered_at = now();
         } elseif ($newStatus === 'closed') {
             $device->closed_at = now();
+            $device->final_amount = $request->final_amount;
+            $device->final_amount_note = $request->final_amount_note;
             Branch::find($device->current_branch_id)->decrement('active_repairs');
         }
         
@@ -223,7 +272,16 @@ class DeviceController extends Controller
         $request->validate(['technician_id' => 'required|exists:employees,id']);
         
         $device = Device::findOrFail($id);
+        $user = $request->user();
+        $canAssign = in_array($user->role, ['super_admin', 'branch_manager'])
+            || (int) $device->assigned_technician_id === (int) $user->id;
+        abort_unless($canAssign, 403, 'Only an admin, branch manager or the assigned engineer can change the assignment.');
         $technician = Employee::findOrFail($request->technician_id);
+        abort_unless(
+            $technician->canAccessBranch($device->current_branch_id),
+            422,
+            'The engineer does not work in this job\'s branch.'
+        );
         
         $device->assigned_technician_id = $technician->id;
         $device->assigned_technician_name = $technician->name;
@@ -232,8 +290,7 @@ class DeviceController extends Controller
         $device->save();
         
         $technician->increment('assigned_devices');
-        
-        $user = $request->user();
+
         $device->statusHistory()->create([
             'status' => 'assigned',
             'description' => "Assigned to {$technician->name}",
@@ -249,6 +306,27 @@ class DeviceController extends Controller
             'success' => true,
             'data' => $device,
             'message' => 'Technician assigned successfully',
+        ]);
+    }
+
+    public function credentials(Request $request, $id)
+    {
+        $device = Device::findOrFail($id);
+        $user = $request->user();
+        abort_unless(
+            $user->role === 'super_admin' || (int) $device->assigned_technician_id === (int) $user->id,
+            403,
+            'Not allowed to view device credentials.'
+        );
+
+        AuditService::log('view_credentials', 'device', $device->id, Device::class);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'device_user_id' => $device->device_user_id,
+                'device_password' => $device->device_password,
+            ],
         ]);
     }
 

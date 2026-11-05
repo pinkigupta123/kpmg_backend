@@ -14,7 +14,7 @@ class AuditLogController extends Controller
         
         $user = $request->user();
         if ($user->role !== 'super_admin') {
-            $query->where('branch_id', $user->branch_id);
+            $query->whereIn('branch_id', $user->allBranchIds());
         }
 
         if ($request->has('module')) {

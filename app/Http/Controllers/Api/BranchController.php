@@ -13,11 +13,11 @@ class BranchController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Branch::with('manager');
+        $query = Branch::with(['manager', 'company']);
         
         $user = $request->user();
         if ($user->role !== 'super_admin') {
-            $query->where('id', $user->branch_id);
+            $query->whereIn('id', $user->allBranchIds());
         }
 
         $branches = $query->orderBy('name', 'asc')->get();

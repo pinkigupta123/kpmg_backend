@@ -11,6 +11,7 @@ class BranchSeeder extends Seeder
     {
         Branch::create([
             'id' => 1,
+            'company_id' => 1,
             'name' => 'HQ - TechFix Central',
             'code' => 'BR-001',
             'address' => '123 Tech Park',
@@ -25,6 +26,7 @@ class BranchSeeder extends Seeder
 
         Branch::create([
             'id' => 2,
+            'company_id' => 1,
             'name' => 'North Branch',
             'code' => 'BR-002',
             'address' => '45 North Ave',

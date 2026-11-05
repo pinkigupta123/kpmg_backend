@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Branch extends Model
 {
     protected $fillable = [
-        'name', 'code', 'address', 'city', 'state', 'pincode',
+        'company_id', 'name', 'code', 'address', 'city', 'state', 'pincode',
         'phone', 'email', 'manager_id', 'manager_name', 'is_active',
         'total_employees', 'active_repairs',
     ];
@@ -17,6 +17,11 @@ class Branch extends Model
     protected $casts = [
         'is_active' => 'boolean',
     ];
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
 
     public function manager(): BelongsTo
     {

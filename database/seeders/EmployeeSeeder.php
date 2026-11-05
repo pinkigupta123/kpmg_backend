@@ -12,6 +12,7 @@ class EmployeeSeeder extends Seeder
     {
         // Super Admin — matches login demo: kavya@techfix.in / Admin@123
         Employee::create([
+            'company_id' => 1,
             'name' => 'Kavya Sharma',
             'code' => 'EMP-001',
             'mobile' => '9900001111',
@@ -28,6 +29,7 @@ class EmployeeSeeder extends Seeder
 
         // Branch Manager — matches login demo: 9900003333 / Manager@123
         Employee::create([
+            'company_id' => 1,
             'name' => 'Rajesh Kumar',
             'code' => 'EMP-002',
             'mobile' => '9900003333',
@@ -44,6 +46,7 @@ class EmployeeSeeder extends Seeder
 
         // Technician / Employee — matches login demo: 9900004444 / Tech@123
         Employee::create([
+            'company_id' => 1,
             'name' => 'Amit Technician',
             'code' => 'EMP-003',
             'mobile' => '9900004444',
@@ -60,6 +63,7 @@ class EmployeeSeeder extends Seeder
 
         // Stock Manager — matches login demo: 9900017777 / Stock@123
         Employee::create([
+            'company_id' => 1,
             'name' => 'Neha Stock Manager',
             'code' => 'EMP-004',
             'mobile' => '9900017777',
@@ -76,6 +80,7 @@ class EmployeeSeeder extends Seeder
 
         // Extra employee on second branch
         Employee::create([
+            'company_id' => 1,
             'name' => 'Suresh Delhi Tech',
             'code' => 'EMP-005',
             'mobile' => '9900005555',
@@ -89,5 +94,8 @@ class EmployeeSeeder extends Seeder
             'is_first_login' => false,
             'joined_at' => now(),
         ]);
+
+        // Demo: a technician who works in two branches (gets a branch choice when creating a job sheet)
+        Employee::where('code', 'EMP-003')->first()?->branches()->syncWithoutDetaching([2]);
     }
 }

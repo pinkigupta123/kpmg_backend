@@ -21,6 +21,8 @@ class StoreEmployeeRequest extends FormRequest
             'password' => 'nullable|string|min:6',
             'designation' => 'required|string|max:255',
             'branch_id' => 'required|exists:branches,id',
+            'branch_ids' => 'nullable|array',
+            'branch_ids.*' => 'exists:branches,id',
             'role' => 'required|in:super_admin,branch_manager,employee,stock_manager',
             'avatar_url' => 'nullable|string',
         ];

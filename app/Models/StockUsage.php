@@ -9,7 +9,7 @@ class StockUsage extends Model
 {
     protected $fillable = [
         'device_id', 'job_number', 'stock_item_id', 'item_name',
-        'quantity', 'selling_price', 'added_by', 'branch_id', 'used_at',
+        'quantity', 'selling_price', 'unit_cost', 'added_by', 'branch_id', 'used_at',
     ];
 
     protected $casts = [

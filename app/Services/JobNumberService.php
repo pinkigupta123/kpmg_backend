@@ -2,29 +2,33 @@
 
 namespace App\Services;
 
+use App\Models\Company;
 use App\Models\Device;
+use Illuminate\Support\Facades\DB;
 
 class JobNumberService
 {
-    public static function generate(): string
+    /**
+     * Job sheet number: <Company Initials> <System-Generated ID> <Creator Initials>
+     * e.g. "HTC 10006 AT". The ID is a per-company sequence incremented under a row lock.
+     */
+    public static function generate(Company $company, string $creatorName): array
     {
-        $year = date('Y');
-        $prefix = "JOB-{$year}-";
+        $seq = DB::transaction(function () use ($company) {
+            $locked = Company::whereKey($company->id)->lockForUpdate()->first();
+            $locked->job_sequence = $locked->job_sequence + 1;
+            $locked->save();
+            return $locked->job_sequence;
+        });
 
-        $lastDevice = Device::where('job_number', 'like', "{$prefix}%")
-            ->orderBy('id', 'desc')
-            ->first();
+        return [$seq, sprintf('%s %d %s', $company->code, $seq, self::initials($creatorName))];
+    }
 
-        if ($lastDevice) {
-            // Extract the sequential part
-            $parts = explode('-', $lastDevice->job_number);
-            $lastNumber = intval(end($parts));
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
-        }
-
-        return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+    public static function initials(string $name): string
+    {
+        $words = preg_split('/\s+/', trim($name), -1, PREG_SPLIT_NO_EMPTY);
+        $letters = array_map(fn ($w) => mb_strtoupper(mb_substr($w, 0, 1)), array_slice($words, 0, 2));
+        return implode('', $letters) ?: 'XX';
     }
 
     public static function generateReceipt(): string
@@ -36,14 +40,7 @@ class JobNumberService
             ->orderBy('id', 'desc')
             ->first();
 
-        if ($lastDevice) {
-            // Extract the sequential part
-            $parts = explode('-', $lastDevice->receipt_number);
-            $lastNumber = intval(end($parts));
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
-        }
+        $newNumber = $lastDevice ? intval(last(explode('-', $lastDevice->receipt_number))) + 1 : 1;
 
         return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }

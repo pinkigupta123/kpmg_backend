@@ -41,7 +41,7 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'user' => $employee->load('branch'),
+                'user' => $employee->load('branch', 'company', 'branches'),
                 'token' => $token,
                 'mustChangePassword' => $employee->must_change_password,
             ],
@@ -63,7 +63,7 @@ class AuthController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data' => $request->user()->load('branch'),
+            'data' => $request->user()->load('branch', 'company', 'branches'),
             'message' => 'Profile retrieved',
         ]);
     }
@@ -95,7 +95,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $user->load('branch'),
+            'data' => $user->load('branch', 'company', 'branches'),
             'message' => 'Password changed successfully',
         ]);
     }

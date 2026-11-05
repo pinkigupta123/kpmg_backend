@@ -19,6 +19,7 @@ class StoreBranchRequest extends FormRequest
         $id = $this->route('id') ?? $this->route('branch');
 
         return [
+            'company_id' => 'required|exists:companies,id',
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:branches,code,' . $id,
             'address' => 'required|string',

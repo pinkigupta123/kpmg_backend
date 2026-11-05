@@ -17,7 +17,10 @@ class CustomerController extends Controller
         
         $user = $request->user();
         if ($user && $user->role !== 'super_admin') {
-            $query->where('branch_id', $user->branch_id);
+            $query->whereIn('branch_id', $user->allBranchIds());
+            if ($request->filled('branch_id') && $user->canAccessBranch($request->branch_id)) {
+                $query->where('branch_id', $request->branch_id);
+            }
         } elseif ($request->filled('branch_id')) {
             $query->where('branch_id', $request->branch_id);
         }
