@@ -185,6 +185,8 @@ class DeviceController extends Controller
                 'data' => $device->load(['images', 'currentBranch', 'company', 'customer', 'creator', 'assignedTechnician']),
                 'message' => 'Job created successfully',
             ], 201);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e; // 403 / 422 business-rule errors keep their status code
         } catch (\Exception $e) {
             \Log::error('Device store error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
