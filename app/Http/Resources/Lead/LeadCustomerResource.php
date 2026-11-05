@@ -17,6 +17,7 @@ class LeadCustomerResource extends JsonResource
             'email'              => $this->email,
             'city'               => $this->city,
             'company'            => $this->company,
+            'lead_source'        => $this->lead_source,
             'interested_product' => $this->interested_product,
             'device_brand'       => $this->device_brand,
             'device_model'       => $this->device_model,

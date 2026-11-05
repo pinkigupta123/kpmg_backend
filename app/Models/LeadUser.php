@@ -26,6 +26,7 @@ class LeadUser extends Authenticatable
         'role',
         'branch',
         'designation',
+        'permissions',
         'status',
         'is_temp_password',
         'temp_password',
@@ -41,6 +42,7 @@ class LeadUser extends Authenticatable
         return [
             'password'         => 'hashed',
             'is_temp_password' => 'boolean',
+            'permissions'      => 'array',
         ];
     }
 
@@ -58,5 +60,12 @@ class LeadUser extends Authenticatable
     public function createdTimelines(): HasMany
     {
         return $this->hasMany(LeadCustomerTimeline::class, 'created_by');
+    }
+
+    /** Super admins implicitly hold every permission; executives need it granted. */
+    public function hasPermission(string $permission): bool
+    {
+        return $this->role === 'super_admin'
+            || in_array($permission, $this->permissions ?? [], true);
     }
 }

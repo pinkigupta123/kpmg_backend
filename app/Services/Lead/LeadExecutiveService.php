@@ -39,6 +39,7 @@ class LeadExecutiveService
             'role'             => 'sales_executive',
             'branch'           => $data['branch'],
             'designation'      => $data['designation'] ?? 'Sales Executive',
+            'permissions'      => array_values(array_unique($data['permissions'] ?? [])),
             'status'           => 'active',
             'is_temp_password' => true,
             'temp_password'    => $tempPassword,
@@ -59,6 +60,11 @@ class LeadExecutiveService
             'designation' => $data['designation'] ?? null,
             'status'      => $data['status'] ?? null,
         ]);
+
+        // array_filter above would drop an empty list, so permissions are handled explicitly
+        if (array_key_exists('permissions', $data)) {
+            $updateData['permissions'] = array_values(array_unique($data['permissions'] ?? []));
+        }
 
         if (!empty($data['password'])) {
             $updateData['password']         = $data['password'];

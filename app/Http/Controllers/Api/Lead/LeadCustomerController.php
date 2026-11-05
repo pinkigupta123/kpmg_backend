@@ -75,6 +75,63 @@ class LeadCustomerController extends Controller
         ], $result['duplicate'] ? 200 : 201);
     }
 
+    /**
+     * POST /lead/customers/bulk — add many leads at once (name + mobile + optional email).
+     * Requires the bulk_add_leads permission (super admins always have it).
+     * Rows are processed independently: valid ones are saved, the rest are reported back.
+     */
+    public function bulkStore(Request $request): JsonResponse
+    {
+        /** @var \App\Models\LeadUser $user */
+        $user = $request->user();
+        if (!$user->hasPermission('bulk_add_leads')) {
+            return response()->json(['message' => 'You do not have permission to add multiple leads.'], 403);
+        }
+
+        $request->validate([
+            'customers'   => 'required|array|min:1|max:100',
+            'lead_source' => 'nullable|string|max:100',
+        ]);
+
+        $created = 0;
+        $duplicates = [];
+        $failed = [];
+
+        foreach ($request->input('customers') as $i => $row) {
+            $row = is_array($row) ? $row : [];
+            $validator = \Illuminate\Support\Facades\Validator::make($row, [
+                'name'   => 'nullable|string|max:255',
+                'mobile' => 'required|string|regex:/^[0-9]{10}$/',
+                'email'  => 'nullable|email|max:255',
+            ], ['mobile.regex' => 'Mobile number must be a valid 10-digit number.']);
+
+            if ($validator->fails()) {
+                $failed[] = ['row' => $i + 1, 'mobile' => $row['mobile'] ?? null, 'error' => $validator->errors()->first()];
+                continue;
+            }
+
+            $data = $validator->validated();
+            // Name is optional in a bulk row; fall back to the number so the lead is still identifiable
+            $data['name'] = trim((string) ($data['name'] ?? '')) !== '' ? $data['name'] : $data['mobile'];
+            if ($request->filled('lead_source')) {
+                $data['lead_source'] = $request->input('lead_source');
+            }
+
+            $result = $this->customerService->create($user, $data);
+            if ($result['duplicate']) {
+                $duplicates[] = ['row' => $i + 1, 'mobile' => $data['mobile']];
+            } else {
+                $created++;
+            }
+        }
+
+        return response()->json([
+            'created'    => $created,
+            'duplicates' => $duplicates,
+            'failed'     => $failed,
+        ]);
+    }
+
     public function update(UpdateLeadCustomerRequest $request, int $id): JsonResponse
     {
         /** @var \App\Models\LeadUser $user */
@@ -99,8 +156,16 @@ class LeadCustomerController extends Controller
         /** @var \App\Models\LeadUser $user */
         $user = $request->user();
 
-        if ($user->role !== 'super_admin') {
-            return response()->json(['message' => 'Only system administrators can delete customer records.'], 403);
+        if (!$user->hasPermission('delete_leads')) {
+            return response()->json(['message' => 'You do not have permission to delete customer records.'], 403);
+        }
+
+        // Executives granted delete_leads may only delete their own leads
+        if ($user->role === 'sales_executive') {
+            $customer = $this->customerService->find($id);
+            if ($customer && $customer->executive_id !== $user->id) {
+                return response()->json(['message' => 'Unauthorized access to customer record.'], 403);
+            }
         }
 
         $deleted = $this->customerService->delete($id);

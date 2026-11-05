@@ -18,6 +18,7 @@ class UpdateLeadCustomerRequest extends FormRequest
             'email'             => 'nullable|email|max:255',
             'city'              => 'nullable|string|max:255',
             'company'           => 'nullable|string|max:255',
+            'lead_source'       => 'nullable|string|max:100',
             'interested_product'=> 'nullable|string|max:255',
             'device_brand'      => 'nullable|string|max:255',
             'device_model'      => 'nullable|string|max:255',

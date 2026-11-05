@@ -20,6 +20,7 @@ class LeadCustomer extends Model
         'email',
         'city',
         'company',
+        'lead_source',
         'interested_product',
         'device_brand',
         'device_model',

@@ -103,6 +103,7 @@ use App\Http\Controllers\Api\Lead\LeadAuthController;
 use App\Http\Controllers\Api\Lead\LeadCustomerController;
 use App\Http\Controllers\Api\Lead\LeadExecutiveController;
 use App\Http\Controllers\Api\Lead\LeadFollowupController;
+use App\Http\Controllers\Api\Lead\LeadOptionController;
 
 Route::prefix('lead')->group(function () {
 
@@ -134,11 +135,18 @@ Route::prefix('lead')->group(function () {
         Route::post('/device-token',                 [LeadFollowupController::class, 'registerDevice']);
         Route::delete('/device-token',               [LeadFollowupController::class, 'unregisterDevice']);
 
+        // Dropdown options (read: everyone, write: super admin only)
+        Route::get('/options',                       [LeadOptionController::class, 'index']);
+        Route::post('/options',                      [LeadOptionController::class, 'store']);
+        Route::put('/options/{id}',                  [LeadOptionController::class, 'update']);
+        Route::delete('/options/{id}',               [LeadOptionController::class, 'destroy']);
+
         // Customers
         Route::get('/customers/search',              [LeadCustomerController::class, 'search']);
         Route::get('/customers/export',              [LeadCustomerController::class, 'index'])->name('lead.customers.export');
         Route::get('/customers',                     [LeadCustomerController::class, 'index']);
         Route::post('/customers',                    [LeadCustomerController::class, 'store']);
+        Route::post('/customers/bulk',               [LeadCustomerController::class, 'bulkStore']);
         Route::get('/customers/{id}',                [LeadCustomerController::class, 'show']);
         Route::put('/customers/{id}',                [LeadCustomerController::class, 'update']);
         Route::delete('/customers/{id}',             [LeadCustomerController::class, 'destroy']);

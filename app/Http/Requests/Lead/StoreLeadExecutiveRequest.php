@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Lead;
 
+use App\Support\LeadPermissions;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreLeadExecutiveRequest extends FormRequest
 {
@@ -21,6 +23,8 @@ class StoreLeadExecutiveRequest extends FormRequest
             'email'       => 'nullable|email|unique:lead_users,email',
             'branch'      => 'required|string|max:255',
             'designation' => 'nullable|string|max:255',
+            'permissions'   => 'nullable|array',
+            'permissions.*' => ['string', Rule::in(LeadPermissions::keys())],
             'password'    => 'nullable|string|min:6',
         ];
     }
