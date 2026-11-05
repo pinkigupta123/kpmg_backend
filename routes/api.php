@@ -103,10 +103,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/options/{id}', [OptionController::class, 'update'])->middleware('role:super_admin');
     Route::patch('/options/{id}/status', [OptionController::class, 'updateStatus'])->middleware('role:super_admin');
 
-    // Invoices (GST / Non-GST) and revenue
-    Route::get('/invoices', [InvoiceController::class, 'index']);
-    Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
-    Route::post('/invoices', [InvoiceController::class, 'store'])->middleware('role:super_admin,branch_manager');
+    // Invoice pre-fill for a job (invoices themselves are generated in the browser, never stored) and revenue
     Route::get('/devices/{id}/invoice-draft', [InvoiceController::class, 'draft'])->middleware('role:super_admin,branch_manager');
     Route::get('/reports/revenue', [ReportController::class, 'revenue']);
     Route::get('/reports/revenue-jobs', [ReportController::class, 'revenueJobs']);

@@ -202,6 +202,7 @@ class DeviceController extends Controller
     public function update(StoreDeviceRequest $request, $id)
     {
         $device = Device::findOrFail($id);
+        abort_if($device->status === 'closed', 422, 'This job is closed and locked - it cannot be reopened or changed.');
         $device->update(collect($request->validated())->except([
             'assigned_technician_id', 'device_images', 'condition_images', 'branch_id', 'customer_id',
         ])->all());
@@ -225,6 +226,7 @@ class DeviceController extends Controller
         ]);
         
         $device = Device::findOrFail($id);
+        abort_if($device->status === 'closed', 422, 'This job is closed and locked - it cannot be reopened or changed.');
         $oldStatus = $device->status;
         $newStatus = $request->status;
         $user = $request->user();
@@ -274,6 +276,7 @@ class DeviceController extends Controller
         $request->validate(['technician_id' => 'required|exists:employees,id']);
         
         $device = Device::findOrFail($id);
+        abort_if($device->status === 'closed', 422, 'This job is closed and locked - it cannot be reopened or changed.');
         $user = $request->user();
         $canAssign = in_array($user->role, ['super_admin', 'branch_manager'])
             || (int) $device->assigned_technician_id === (int) $user->id;

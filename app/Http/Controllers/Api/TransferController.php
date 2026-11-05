@@ -50,6 +50,7 @@ class TransferController extends Controller
         $data = $request->validated();
         
         $device = Device::findOrFail($data['device_id']);
+        abort_if($device->status === 'closed', 422, 'This job is closed and locked - it cannot be reopened or changed.');
         $user = $request->user();
         $destBranch = Branch::findOrFail($data['destination_branch_id']);
         

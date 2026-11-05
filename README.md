@@ -179,3 +179,22 @@ If the frontend runs on another origin, also configure CORS (`config/cors.php`) 
 - [ ] `storage/` and `bootstrap/cache/` writable
 - [ ] Queue worker and scheduler running (if used)
 - [ ] HTTPS enabled, document root is `public/`
+
+
+### PROD DEPLOY FRESH
+
+cd /path/to/kpmg_backend
+git pull
+
+composer install --no-dev --optimize-autoloader
+
+php artisan migrate:fresh --force                      # flush: drops every table and rebuilds
+php artisan db:seed --class=ProductionSeeder --force   # company, branch, dropdown options, one user per role
+php artisan storage:link                               # needed for invoice photos
+
+php artisan config:cache
+php artisan route:cache
+chmod -R 775 storage bootstrap/cache                   # web server user must be able to write
+
+
+

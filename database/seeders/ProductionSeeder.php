@@ -3,17 +3,20 @@
 namespace Database\Seeders;
 
 use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Employee;
 use App\Models\LeadUser;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 /**
- * Production seeder: one user per role. Safe to re-run (no duplicates).
+ * Production seeder: base company + branch, dropdown options, and one user per role. Safe to re-run.
  *
  *   php artisan db:seed --class=ProductionSeeder --force
  *
  * Every user starts with the same password and must change it on first login.
+ * After the first login, open Companies / Branches and replace the placeholder details (name, initials, address,
+ * GSTIN) - they print on job sheets and invoices, and the initials form the job sheet number (e.g. "KPNG 10001 SA").
  */
 class ProductionSeeder extends Seeder
 {
@@ -21,14 +24,27 @@ class ProductionSeeder extends Seeder
 
     public function run(): void
     {
+        $company = Company::firstOrCreate(
+            ['code' => 'KPNG'],
+            [
+                'name' => 'KPNG Technologies', 'address' => 'Update me', 'city' => 'Update me',
+                'state' => 'Update me', 'pincode' => '000000', 'phone' => '0000000000',
+                'job_sequence' => 10000, 'is_active' => true,
+            ]
+        );
+
         $branch = Branch::firstOrCreate(
             ['code' => 'BR-001'],
             [
+                'company_id' => $company->id,
                 'name' => 'Head Office', 'address' => 'Update me', 'city' => 'Update me',
                 'state' => 'Update me', 'pincode' => '000000', 'phone' => '0000000000',
                 'is_active' => true,
             ]
         );
+
+        // Dropdown values used by the job sheet and inventory forms (categories, call types, ...)
+        $this->call(OptionSeeder::class);
 
         // employees table: [role, code, mobile, email, name]
         $employees = [
@@ -40,6 +56,7 @@ class ProductionSeeder extends Seeder
 
         foreach ($employees as [$role, $code, $mobile, $email, $name]) {
             Employee::firstOrCreate(['code' => $code], [
+                'company_id' => $company->id,
                 'name' => $name, 'mobile' => $mobile, 'email' => $email,
                 'password' => Hash::make(self::PASSWORD),
                 'designation' => $name, 'branch_id' => $branch->id, 'branch_name' => $branch->name,
@@ -47,6 +64,7 @@ class ProductionSeeder extends Seeder
                 'joined_at' => now(),
             ]);
         }
+        $branch->update(['total_employees' => count($employees)]);
 
         // lead_users table: [role, employee_id, mobile, email, name]
         $leadUsers = [

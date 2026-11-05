@@ -147,6 +147,7 @@ class InventoryController extends Controller
         }
 
         $device = Device::findOrFail($data['device_id']);
+        abort_if($device->status === 'closed', 422, 'This job is closed and locked - it cannot be reopened or changed.');
         $user = $request->user();
 
         $item->quantity -= $data['quantity'];
