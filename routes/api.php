@@ -174,6 +174,16 @@ Route::prefix('lead')->group(function () {
         Route::post('/device-token',                 [LeadFollowupController::class, 'registerDevice']);
         Route::delete('/device-token',               [LeadFollowupController::class, 'unregisterDevice']);
 
+        // Companies & branches (shared with KPNG Technology; Super Admin only)
+        Route::get('/org/companies',                 [\App\Http\Controllers\Api\Lead\LeadOrgController::class, 'companies']);
+        Route::post('/org/companies',                [\App\Http\Controllers\Api\Lead\LeadOrgController::class, 'storeCompany']);
+        Route::put('/org/companies/{id}',            [\App\Http\Controllers\Api\Lead\LeadOrgController::class, 'updateCompany']);
+        Route::patch('/org/companies/{id}/status',   [\App\Http\Controllers\Api\Lead\LeadOrgController::class, 'companyStatus']);
+        Route::get('/org/branches',                  [\App\Http\Controllers\Api\Lead\LeadOrgController::class, 'branches']);
+        Route::post('/org/branches',                 [\App\Http\Controllers\Api\Lead\LeadOrgController::class, 'storeBranch']);
+        Route::put('/org/branches/{id}',             [\App\Http\Controllers\Api\Lead\LeadOrgController::class, 'updateBranch']);
+        Route::patch('/org/branches/{id}/status',    [\App\Http\Controllers\Api\Lead\LeadOrgController::class, 'branchStatus']);
+
         // Dropdown options (read: everyone, write: super admin only)
         Route::get('/options',                       [LeadOptionController::class, 'index']);
         Route::post('/options',                      [LeadOptionController::class, 'store']);
