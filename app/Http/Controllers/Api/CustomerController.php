@@ -86,6 +86,13 @@ class CustomerController extends Controller
     {
         $customer = Customer::findOrFail($id);
         $customer->update($request->validated());
+
+        // Job sheets keep a copy of the customer's name and mobile; keep every job of this customer in step so sheets,
+        // WhatsApp messages and reprints always show the current contact details.
+        Device::where('customer_id', $customer->id)->update([
+            'customer_name' => $customer->name,
+            'customer_mobile' => $customer->mobile,
+        ]);
         
         AuditService::log('update', 'customer', $customer->id, Customer::class);
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\BranchController;
 use App\Http\Controllers\Api\CompanyController;
+use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\OptionController;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\ReportController;
@@ -36,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Dashboard
     Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
+    Route::get('/dashboard/overview', [DashboardController::class, 'overview']);
 
     // Companies
     Route::get('/companies', [CompanyController::class, 'index']);
@@ -71,6 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/devices', [DeviceController::class, 'store']);
     Route::put('/devices/{id}', [DeviceController::class, 'update']);
     Route::patch('/devices/{id}/status', [DeviceController::class, 'updateStatus']);
+    Route::post('/devices/{id}/reopen', [DeviceController::class, 'reopen'])->middleware('role:super_admin');
     Route::post('/devices/{id}/assign', [DeviceController::class, 'assignTechnician']); // authorised in controller (admin/manager/assigned engineer)
     Route::get('/devices/{id}/credentials', [DeviceController::class, 'credentials']);
     Route::post('/devices/{id}/notes', [DeviceController::class, 'addNote']);
@@ -99,13 +102,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inventory/usage/device/{deviceId}', [InventoryController::class, 'usageByDevice']);
 
     // Dropdown options (categories etc.) - read by everyone, managed by Super Admin, never deleted
+    // Offers: Super Admin manages, admins / branch managers read them to send to customers on WhatsApp
+    Route::get('/offers', [OfferController::class, 'index']); // technicians get active offers only (to apply a discount when delivering)
+    Route::post('/offers', [OfferController::class, 'store'])->middleware('role:super_admin');
+    Route::put('/offers/{id}', [OfferController::class, 'update'])->middleware('role:super_admin');
+    Route::delete('/offers/{id}', [OfferController::class, 'destroy'])->middleware('role:super_admin');
+
     Route::get('/options', [OptionController::class, 'index']);
     Route::post('/options', [OptionController::class, 'store'])->middleware('role:super_admin');
     Route::put('/options/{id}', [OptionController::class, 'update'])->middleware('role:super_admin');
     Route::patch('/options/{id}/status', [OptionController::class, 'updateStatus'])->middleware('role:super_admin');
 
-    // Invoice pre-fill for a job (invoices themselves are generated in the browser, never stored) and revenue
-    Route::get('/devices/{id}/invoice-draft', [InvoiceController::class, 'draft'])->middleware('role:super_admin,branch_manager');
+    // Invoice pre-fill for a job, saved invoices (one GST + one Non-GST per job, PDF built in the browser) and revenue
+    Route::get('/devices/{id}/invoice-draft', [InvoiceController::class, 'draft'])->middleware('role:super_admin,branch_manager,employee');
+    Route::get('/devices/{id}/invoices', [InvoiceController::class, 'index'])->middleware('role:super_admin,branch_manager,employee');
+    Route::post('/devices/{id}/invoices', [InvoiceController::class, 'store'])->middleware('role:super_admin,branch_manager,employee');
     Route::get('/reports/revenue', [ReportController::class, 'revenue']);
     Route::get('/reports/revenue-jobs', [ReportController::class, 'revenueJobs']);
 

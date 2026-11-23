@@ -359,8 +359,9 @@ class InventoryController extends Controller
         ]);
     }
 
-    public function usageByDevice($deviceId)
+    public function usageByDevice(Request $request, $deviceId)
     {
+        abort_unless(\App\Models\Device::findOrFail($deviceId)->canBeSeenBy($request->user()), 403, 'You do not have access to this job.');
         // Join with employees to get adder name
         $usages = StockUsage::where('device_id', $deviceId)
             ->join('employees', 'stock_usages.added_by', '=', 'employees.id')

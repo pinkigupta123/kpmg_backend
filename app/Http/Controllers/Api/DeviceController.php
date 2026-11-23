@@ -20,14 +20,7 @@ class DeviceController extends Controller
         $query = Device::with(['customer', 'currentBranch', 'company', 'assignedTechnician', 'creator']);
         
         $user = $request->user();
-        if ($user->role === 'branch_manager') {
-            $query->whereIn('current_branch_id', $user->allBranchIds());
-        } elseif ($user->role === 'employee') {
-            $query->where(function ($q) use ($user) {
-                $q->where('assigned_technician_id', $user->id)
-                  ->orWhere('created_by', $user->id);
-            });
-        }
+        $query->visibleTo($user);
 
         if ($request->filled('branch_id') && $user->canAccessBranch($request->branch_id)) {
             $query->where('current_branch_id', $request->branch_id);
@@ -95,9 +88,10 @@ class DeviceController extends Controller
         ]);
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $device = Device::with(['customer', 'company', 'currentBranch', 'assignedTechnician', 'creator', 'images', 'notes', 'statusHistory', 'stockUsages'])->findOrFail($id);
+        abort_unless($device->canBeSeenBy($request->user()), 403, 'You do not have access to this job.');
         
         return response()->json([
             'success' => true,
@@ -131,6 +125,7 @@ class DeviceController extends Controller
                 422,
                 'The assigned engineer does not work in the selected branch.'
             );
+            foreach (['brand', 'model', 'reported_issue'] as $k) { $data[$k] = $data[$k] ?? ''; }
             $data['assigned_technician_id'] = $technician->id;
             $data['assigned_technician_name'] = $technician->name;
             $data['assigned_at'] = now();
@@ -202,10 +197,15 @@ class DeviceController extends Controller
     public function update(StoreDeviceRequest $request, $id)
     {
         $device = Device::findOrFail($id);
+        abort_unless($device->canBeSeenBy($request->user()), 403, 'You do not have access to this job.');
         abort_if($device->status === 'closed', 422, 'This job is closed and locked - it cannot be reopened or changed.');
-        $device->update(collect($request->validated())->except([
+        $payload = collect($request->validated())->except([
             'assigned_technician_id', 'device_images', 'condition_images', 'branch_id', 'customer_id',
-        ])->all());
+        ])->all();
+        foreach (['brand', 'model', 'reported_issue'] as $k) {
+            if (array_key_exists($k, $payload) && $payload[$k] === null) { $payload[$k] = ''; }
+        }
+        $device->update($payload);
         
         AuditService::log('update', 'device', $device->id, Device::class);
 
@@ -223,9 +223,18 @@ class DeviceController extends Controller
             // closing a job requires the amount actually charged to the customer
             'final_amount' => 'required_if:status,delivered|nullable|numeric|min:0',
             'final_amount_note' => 'nullable|string|max:1000',
+            // what each part used on the job was actually sold for (per unit); sent when the job is delivered
+            'parts' => 'nullable|array',
+            'parts.*.id' => 'required_with:parts|integer',
+            'parts.*.selling_price' => 'required_with:parts|numeric|min:0',
+            // discount given at hand-over: how much, why, and which offer (if any) it came from
+            'discount_amount' => 'nullable|numeric|min:0',
+            'discount_note' => 'nullable|string|max:255',
+            'offer_id' => 'nullable|integer',
         ]);
-        
+
         $device = Device::findOrFail($id);
+        abort_unless($device->canBeSeenBy($request->user()), 403, 'You do not have access to this job.');
         abort_if($device->status === 'closed', 422, 'This job is closed and locked - it cannot be reopened or changed.');
         $oldStatus = $device->status;
         $newStatus = $request->status;
@@ -247,6 +256,9 @@ class DeviceController extends Controller
             // the amount charged at hand-over; it can be corrected when the job is closed
             $device->final_amount = $request->final_amount;
             $device->final_amount_note = $request->final_amount_note;
+            $device->discount_amount = (float) $request->input('discount_amount', 0);
+            $device->discount_note = $request->input('discount_note');
+            $device->offer_id = $request->input('offer_id');
         } elseif ($newStatus === 'closed') {
             $device->closed_at = now();
             // the amount is taken at delivery; only overwrite it if one is sent explicitly
@@ -257,6 +269,14 @@ class DeviceController extends Controller
             Branch::find($device->current_branch_id)->decrement('active_repairs');
         }
         
+        // record the real selling price of every part on this job, so revenue per part / per item can be worked out
+        if ($request->filled('parts') && in_array($newStatus, ['delivered', 'closed'], true)) {
+            foreach ($request->input('parts') as $p) {
+                \App\Models\StockUsage::where('device_id', $device->id)->where('id', $p['id'])
+                    ->update(['selling_price' => $p['selling_price']]);
+            }
+        }
+
         $device->save();
 
         $device->statusHistory()->create([
@@ -285,8 +305,9 @@ class DeviceController extends Controller
         abort_if($device->status === 'closed', 422, 'This job is closed and locked - it cannot be reopened or changed.');
         $user = $request->user();
         $canAssign = in_array($user->role, ['super_admin', 'branch_manager'])
-            || (int) $device->assigned_technician_id === (int) $user->id;
-        abort_unless($canAssign, 403, 'Only an admin, branch manager or the assigned engineer can change the assignment.');
+            || (int) $device->assigned_technician_id === (int) $user->id
+            || (int) $device->created_by === (int) $user->id;
+        abort_unless($canAssign, 403, 'Only an admin, branch manager, the job creator or the assigned engineer can change the assignment.');
         $technician = Employee::findOrFail($request->technician_id);
         abort_unless(
             $technician->canAccessBranch($device->current_branch_id),
@@ -327,6 +348,7 @@ class DeviceController extends Controller
     {
         $device = Device::findOrFail($id);
         $user = $request->user();
+        abort_unless($device->canBeSeenBy($user), 403, 'You do not have access to this job.');
         abort_unless(
             $user->role === 'super_admin' || (int) $device->assigned_technician_id === (int) $user->id,
             403,
@@ -365,5 +387,41 @@ class DeviceController extends Controller
             'data' => $device->load('notes'),
             'message' => 'Note added',
         ]);
+    }
+
+    /**
+     * Reopen a closed job (Super Admin only). The job goes back to the status it had before it was closed
+     * (normally "delivered"), the reason is kept in the job history and the audit log, and it can be closed again later.
+     */
+    public function reopen(Request $request, $id)
+    {
+        $data = $request->validate(['reason' => 'required|string|min:3|max:500']);
+
+        $device = Device::findOrFail($id);
+        abort_if($device->status !== 'closed', 422, 'Only a closed job can be reopened.');
+
+        $user = $request->user();
+        // status the job had just before it was closed
+        $previous = $device->statusHistory()->where('status', '!=', 'closed')->latest('id')->value('status') ?: 'delivered';
+
+        $device->status = $previous;
+        $device->closed_at = null;
+        $device->save();
+
+        // closing released one active repair for the branch; reopening takes it back so the counters stay true
+        Branch::find($device->current_branch_id)?->increment('active_repairs');
+
+        $device->statusHistory()->create([
+            'status' => $previous,
+            'description' => "Job reopened (was closed): {$data['reason']}",
+            'performed_by' => $user->id,
+            'performed_by_name' => $user->name,
+            'branch_id' => $user->branch_id,
+            'branch_name' => $user->branch_name,
+        ]);
+
+        AuditService::log('reopen', 'device', $device->id, Device::class, $data['reason']);
+
+        return response()->json(['success' => true, 'data' => $device]);
     }
 }

@@ -9,6 +9,37 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Device extends Model
 {
+    /**
+     * Who can see a job:
+     *  - super_admin: every job
+     *  - branch_manager / stock_manager: every job in their branch(es)
+     *  - technicians (employee): only jobs assigned to them or created by them
+     * Revenue, the dashboard, the job list and every per-job screen use this same rule.
+     */
+    public function scopeVisibleTo($query, $user)
+    {
+        if ($user->role === 'super_admin') {
+            return $query;
+        }
+        if (in_array($user->role, ['branch_manager', 'stock_manager'], true)) {
+            return $query->whereIn('current_branch_id', $user->allBranchIds());
+        }
+
+        return $query->where(fn ($w) => $w->where('assigned_technician_id', $user->id)->orWhere('created_by', $user->id));
+    }
+
+    public function canBeSeenBy($user): bool
+    {
+        if ($user->role === 'super_admin') {
+            return true;
+        }
+        if (in_array($user->role, ['branch_manager', 'stock_manager'], true)) {
+            return in_array((int) $this->current_branch_id, $user->allBranchIds(), true);
+        }
+
+        return (int) $this->assigned_technician_id === (int) $user->id || (int) $this->created_by === (int) $user->id;
+    }
+
     protected $fillable = [
         'company_id', 'final_amount', 'final_amount_note', 'fixed_amount', 'estimated_amount', 'estimate_remarks', 'receiving_address', 'device_user_id',
         'job_number', 'receipt_number', 'customer_id', 'customer_name', 'customer_mobile',

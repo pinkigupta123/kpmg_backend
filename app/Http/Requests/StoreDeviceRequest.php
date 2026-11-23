@@ -11,19 +11,35 @@ class StoreDeviceRequest extends FormRequest
         return true;
     }
 
+    /**
+     * The API's middleware stack does not turn empty form values into null, so a blank Fixed Amount arrived as ''
+     * and the decimal column rejected it. Treat every blank value as "not provided".
+     */
+    protected function prepareForValidation(): void
+    {
+        $blank = [];
+        foreach ($this->all() as $key => $value) {
+            if ($value === '') {
+                $blank[$key] = null;
+            }
+        }
+        $this->merge($blank);
+    }
+
     public function rules(): array
     {
         return [
             'customer_id' => 'required|exists:customers,id',
             'type' => 'required|in:laptop,desktop,printer,networking,other',
-            'brand' => 'required|string|max:255',
-            'model' => 'required|string|max:255',
+            // brand, model and the reported problem are required for every device type except "other"
+            'brand' => 'required_unless:type,other|nullable|string|max:255',
+            'model' => 'required_unless:type,other|nullable|string|max:255',
             'serial_number' => 'nullable|string|max:255',
             'processor' => 'nullable|string|max:255',
             'ram' => 'nullable|string|max:255',
             'storage' => 'nullable|string|max:255',
             'accessories' => 'nullable|array',
-            'reported_issue' => 'required|string',
+            'reported_issue' => 'required_unless:type,other|nullable|string',
             'physical_condition' => 'nullable|string',
             'condition_checklist' => 'nullable|array',
             'branch_id' => 'required|exists:branches,id',
