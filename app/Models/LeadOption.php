@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class LeadOption extends Model
 {
     /** Dropdown groups the admin can manage. */
-    public const TYPES = ['lead_source', 'designation'];
+    public const TYPES = ['lead_source', 'designation', 'card_provider', 'upi_provider', 'finance_provider', 'order_offer'];
 
     protected $table = 'lead_options';
 
