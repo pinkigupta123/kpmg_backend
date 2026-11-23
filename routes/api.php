@@ -90,6 +90,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inventory', [InventoryController::class, 'index']);
     Route::get('/inventory/history', [InventoryController::class, 'history']);
     Route::get('/inventory/transactions', [InventoryController::class, 'transactions']);
+    Route::get('/inventory/summary', [InventoryController::class, 'summary']);
     Route::post('/inventory/invoice', [InventoryController::class, 'storeInvoice'])->middleware('role:super_admin,branch_manager,stock_manager');
     Route::get('/inventory/{id}', [InventoryController::class, 'show'])->whereNumber('id');
     Route::post('/inventory', [InventoryController::class, 'store'])->middleware('role:super_admin,branch_manager,stock_manager');
@@ -165,7 +166,6 @@ Route::prefix('lead')->group(function () {
         Route::get('/options',                       [LeadOptionController::class, 'index']);
         Route::post('/options',                      [LeadOptionController::class, 'store']);
         Route::put('/options/{id}',                  [LeadOptionController::class, 'update']);
-        Route::delete('/options/{id}',               [LeadOptionController::class, 'destroy']);
 
         // Customers
         Route::get('/customers/search',              [LeadCustomerController::class, 'search']);

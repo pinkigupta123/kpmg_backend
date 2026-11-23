@@ -221,7 +221,7 @@ class DeviceController extends Controller
         $request->validate([
             'status' => 'required|string',
             // closing a job requires the amount actually charged to the customer
-            'final_amount' => 'required_if:status,closed|nullable|numeric|min:0',
+            'final_amount' => 'required_if:status,delivered|nullable|numeric|min:0',
             'final_amount_note' => 'nullable|string|max:1000',
         ]);
         
@@ -244,10 +244,16 @@ class DeviceController extends Controller
             }
         } elseif ($newStatus === 'delivered') {
             $device->delivered_at = now();
-        } elseif ($newStatus === 'closed') {
-            $device->closed_at = now();
+            // the amount charged at hand-over; it can be corrected when the job is closed
             $device->final_amount = $request->final_amount;
             $device->final_amount_note = $request->final_amount_note;
+        } elseif ($newStatus === 'closed') {
+            $device->closed_at = now();
+            // the amount is taken at delivery; only overwrite it if one is sent explicitly
+            if ($request->filled('final_amount')) {
+                $device->final_amount = $request->final_amount;
+                $device->final_amount_note = $request->final_amount_note;
+            }
             Branch::find($device->current_branch_id)->decrement('active_repairs');
         }
         
@@ -290,7 +296,10 @@ class DeviceController extends Controller
         
         $device->assigned_technician_id = $technician->id;
         $device->assigned_technician_name = $technician->name;
-        $device->status = 'assigned';
+        // only a freshly received job moves to 'assigned'; reassigning must not push an in-progress/delivered job back
+        if (in_array($device->status, ['received', 'assigned'], true)) {
+            $device->status = 'assigned';
+        }
         $device->assigned_at = now();
         $device->save();
         

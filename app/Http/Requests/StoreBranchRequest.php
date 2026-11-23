@@ -21,12 +21,12 @@ class StoreBranchRequest extends FormRequest
         return [
             'company_id' => 'required|exists:companies,id',
             'name' => 'required|string|max:255',
-            'code' => 'required|string|max:255|unique:branches,code,' . $id,
-            'address' => 'required|string',
-            'city' => 'required|string|max:255',
-            'state' => 'required|string|max:255',
-            'pincode' => 'required|string|max:10',
-            'phone' => 'required|string|max:20',
+            'code' => 'nullable|string|max:255|unique:branches,code,' . $id,
+            'address' => 'nullable|string',
+            'city' => 'nullable|string|max:255',
+            'state' => 'nullable|string|max:255',
+            'pincode' => 'nullable|string|max:10',
+            'phone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
             'manager_id' => 'nullable|exists:employees,id',
         ];

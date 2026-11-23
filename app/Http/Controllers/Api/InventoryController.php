@@ -20,7 +20,11 @@ use Illuminate\Support\Str;
 
 class InventoryController extends Controller
 {
-    public function index(Request $request)
+    /** Stock at or below this quantity counts as "low". */
+    private const LOW_STOCK = 5;
+
+    /** Branch / category / search / stock-status filters shared by the list and the summary. */
+    private function filteredQuery(Request $request)
     {
         $query = StockItem::query();
         
@@ -49,13 +53,63 @@ class InventoryController extends Controller
             });
         }
 
+        if ($request->filled('stock_status')) {
+            match ($request->stock_status) {
+                'out' => $query->where('quantity', '<=', 0),
+                'low' => $query->where('quantity', '>', 0)->where('quantity', '<=', self::LOW_STOCK),
+                'in'  => $query->where('quantity', '>', self::LOW_STOCK),
+                default => null,
+            };
+        }
+
+        return $query;
+    }
+
+    /** Headline numbers for the Inventory screen cards (same filters as the list, except stock status). */
+    public function summary(Request $request)
+    {
+        $request->query->remove('stock_status');
+        $q = $this->filteredQuery($request);
+
+        $user = $request->user();
+        $row = (clone $q)->selectRaw(
+            'COUNT(*) as items, COALESCE(SUM(quantity),0) as units, '
+            . 'COALESCE(SUM(CASE WHEN quantity <= 0 THEN 1 ELSE 0 END),0) as out_of_stock, '
+            . 'COALESCE(SUM(CASE WHEN quantity > 0 AND quantity <= ? THEN 1 ELSE 0 END),0) as low_stock, '
+            . 'COALESCE(SUM(quantity * COALESCE(unit_cost,0)),0) as stock_value',
+            [self::LOW_STOCK]
+        )->first();
+
+        return response()->json(['success' => true, 'data' => [
+            'items' => (int) $row->items,
+            'units' => (int) $row->units,
+            'lowStock' => (int) $row->low_stock,
+            'outOfStock' => (int) $row->out_of_stock,
+            // purchase cost is hidden from engineers, as everywhere else
+            'stockValue' => $user->role === 'employee' ? null : round((float) $row->stock_value, 2),
+            'lowStockLimit' => self::LOW_STOCK,
+        ]]);
+    }
+
+    public function index(Request $request)
+    {
+        $query = $this->filteredQuery($request);
+
         $page = $request->page ?? 1;
         $limit = $request->limit ?? 20;
         
         $total = clone $query;
         $totalCount = $total->count();
         
-        $items = $query->orderBy('name', 'asc')
+        // sort: name (default) | qty_asc (lowest stock first) | qty_desc | recent
+        match ($request->sort) {
+            'qty_asc' => $query->orderBy('quantity', 'asc')->orderBy('name', 'asc'),
+            'qty_desc' => $query->orderBy('quantity', 'desc')->orderBy('name', 'asc'),
+            'recent' => $query->orderByDesc('id'),
+            default => $query->orderBy('name', 'asc'),
+        };
+
+        $items = $query
             ->skip(($page - 1) * $limit)
             ->take($limit)
             ->get();
@@ -258,6 +312,7 @@ class InventoryController extends Controller
         abort_unless($user->canAccessBranch($item->branch_id), 403);
 
         $item->setAttribute('transactions', StockTransaction::where('stock_item_id', $item->id)->orderByDesc('id')->limit(200)->get());
+        $item->setAttribute('added_by_name', \App\Models\Employee::find($item->added_by)?->name);
         $item->setAttribute('invoice', $item->invoice_id ? StockInvoice::with('items:id,invoice_id,item_code,name,quantity')->find($item->invoice_id) : null);
 
         return response()->json(['success' => true, 'data' => $item]);
@@ -293,6 +348,9 @@ class InventoryController extends Controller
         if ($request->filled('month')) {
             $q->where(DB::raw("DATE_FORMAT(created_at,'%Y-%m')"), $request->month);
         }
+        // optional date range (the month list above stays complete so it can still be picked from)
+        if ($request->filled('from')) $q->whereDate('created_at', '>=', $request->from);
+        if ($request->filled('to')) $q->whereDate('created_at', '<=', $request->to);
 
         return response()->json([
             'success' => true,

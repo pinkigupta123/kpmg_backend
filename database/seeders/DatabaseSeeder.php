@@ -8,23 +8,20 @@ class DatabaseSeeder extends Seeder
 {
     /**
      * Seed the application's database.
+     * Base setup (companies, branches, options, all users) comes from ProductionSeeder, so general/dev and
+     * production share one source of truth. Everything after it is demo data for general/dev only.
      */
     public function run(): void
     {
         $this->call([
-            CompanySeeder::class,
-            BranchSeeder::class,
-            EmployeeSeeder::class,
+            ProductionSeeder::class,
+            // ── Demo data (general/dev only) ──
             CustomerSeeder::class,
             DeviceSeeder::class,
             ServiceReportSeeder::class,
             StockItemSeeder::class,
             StockLedgerSeeder::class,
             TransferSeeder::class,
-            SettingsSeeder::class,
-            OptionSeeder::class,
-            // ── Lead Management Module ──
-            LeadDatabaseSeeder::class,
         ]);
     }
 }

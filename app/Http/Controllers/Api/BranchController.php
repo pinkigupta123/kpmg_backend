@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreBranchRequest;
 use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use App\Services\AuditService;
@@ -40,9 +41,39 @@ class BranchController extends Controller
         ]);
     }
 
+    /** Address, contact and email are optional on a branch - anything left blank defaults to the company's. */
+    private function withCompanyDefaults(array $data): array
+    {
+        $company = Company::find($data['company_id'] ?? null);
+        if ($company) {
+            foreach (['address', 'city', 'state', 'pincode', 'phone', 'email'] as $field) {
+                if (blank($data[$field] ?? null)) {
+                    $data[$field] = $company->{$field};
+                }
+            }
+        }
+
+        return $data;
+    }
+
+    /** Next free branch code for a company, e.g. HTC-03 (editable by the user afterwards). */
+    private function generateBranchCode(?Company $company): string
+    {
+        $prefix = strtoupper($company->code ?? 'BR');
+        $n = Branch::where('company_id', $company?->id)->count() + 1;
+        do {
+            $code = sprintf('%s-%02d', $prefix, $n++);
+        } while (Branch::where('code', $code)->exists());
+
+        return $code;
+    }
+
     public function store(StoreBranchRequest $request)
     {
-        $data = $request->validated();
+        $data = $this->withCompanyDefaults($request->validated());
+        if (blank($data['code'] ?? null)) {
+            $data['code'] = $this->generateBranchCode(Company::find($data['company_id']));
+        }
         
         if (!empty($data['manager_id'])) {
             $manager = Employee::find($data['manager_id']);
@@ -64,7 +95,10 @@ class BranchController extends Controller
     public function update(StoreBranchRequest $request, $id)
     {
         $branch = Branch::findOrFail($id);
-        $data = $request->validated();
+        $data = $this->withCompanyDefaults($request->validated());
+        if (blank($data['code'] ?? null)) {
+            unset($data['code']); // keep the existing code
+        }
 
         if (!empty($data['manager_id']) && $data['manager_id'] != $branch->manager_id) {
             $manager = Employee::find($data['manager_id']);

@@ -9,24 +9,28 @@ class CustomerSeeder extends Seeder
 {
     public function run(): void
     {
-        Customer::create([
-            'name' => 'Rahul Sharma',
-            'mobile' => '9876543210',
-            'email' => 'rahul@example.com',
-            'address' => 'Andheri West',
-            'city' => 'Mumbai',
-            'state' => 'Maharashtra',
-            'branch_id' => 1,
-        ]);
+        Customer::updateOrCreate(
+            ['mobile' => '9876543210'],
+            [
+                'name' => 'Rahul Sharma',
+                'email' => 'rahul@example.com',
+                'address' => 'Andheri West',
+                'city' => 'Mumbai',
+                'state' => 'Maharashtra',
+                'branch_id' => 1,
+            ]
+        );
 
-        Customer::create([
-            'name' => 'Priya Singh',
-            'mobile' => '9123456789',
-            'email' => 'priya@example.com',
-            'address' => 'Connaught Place',
-            'city' => 'Delhi',
-            'state' => 'Delhi',
-            'branch_id' => 2,
-        ]);
+        Customer::updateOrCreate(
+            ['mobile' => '9123456789'],
+            [
+                'name' => 'Priya Singh',
+                'email' => 'priya@example.com',
+                'address' => 'Connaught Place',
+                'city' => 'Delhi',
+                'state' => 'Delhi',
+                'branch_id' => 2,
+            ]
+        );
     }
 }

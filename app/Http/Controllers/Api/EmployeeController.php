@@ -50,7 +50,16 @@ class EmployeeController extends Controller
     public function store(StoreEmployeeRequest $request)
     {
         $data = $request->validated();
-        
+
+        // Employee code is auto-generated (EMP-001, EMP-002, ...) unless the user typed their own
+        if (blank($data['code'] ?? null)) {
+            $max = Employee::where('code', 'like', 'EMP-%')->pluck('code')
+                ->map(fn ($c) => (int) preg_replace('/\D/', '', $c))->max() ?? 0;
+            do {
+                $data['code'] = sprintf('EMP-%03d', ++$max);
+            } while (Employee::where('code', $data['code'])->exists());
+        }
+
         $branch = Branch::findOrFail($data['branch_id']);
         $data['branch_name'] = $branch->name;
         $data['company_id'] = $branch->company_id;

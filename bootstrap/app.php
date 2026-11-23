@@ -25,6 +25,10 @@ return Application::configure(basePath: dirname(__DIR__))
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
 
+        // API is token-only: unauthenticated requests get 401 JSON (there is no "login" web route to redirect to,
+        // which otherwise turns a missing token into a 500 "Server Error" when the Accept header is not JSON)
+        $middleware->redirectGuestsTo(fn ($request) => $request->is('api/*') ? null : '/');
+
         $middleware->validateCsrfTokens(except: [
             'api/*',
         ]);

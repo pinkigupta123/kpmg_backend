@@ -11,16 +11,16 @@ class SettingsSeeder extends Seeder
     {
         $settings = [
             // Company info
-            ['key' => 'company_name',        'value' => 'TechFix Service Center',     'type' => 'string'],
-            ['key' => 'company_email',        'value' => 'info@techfix.in',            'type' => 'string'],
-            ['key' => 'company_phone',        'value' => '022-12345678',               'type' => 'string'],
-            ['key' => 'company_address',      'value' => '123 Tech Park, Mumbai, Maharashtra - 400001', 'type' => 'string'],
-            ['key' => 'company_gst',          'value' => '27AABCT1234A1Z5',            'type' => 'string'],
+            ['key' => 'company_name',        'value' => 'KPNG Technologies',     'type' => 'string'],
+            ['key' => 'company_email',        'value' => 'info@kpng.com',            'type' => 'string'],
+            ['key' => 'company_phone',        'value' => '0000000000',               'type' => 'string'],
+            ['key' => 'company_address',      'value' => 'Update me', 'type' => 'string'],
+            ['key' => 'company_gst',          'value' => '',            'type' => 'string'],
             ['key' => 'company_logo_path',    'value' => null,                         'type' => 'string'],
 
             // Job number settings
             ['key' => 'job_number_prefix',    'value' => 'JOB',                        'type' => 'string'],
-            ['key' => 'job_number_counter',   'value' => '5',                          'type' => 'string'],
+            ['key' => 'job_number_counter',   'value' => '0',                          'type' => 'string'],
             ['key' => 'receipt_prefix',       'value' => 'REC',                        'type' => 'string'],
             ['key' => 'transfer_prefix',      'value' => 'TRF',                        'type' => 'string'],
 
@@ -46,16 +46,18 @@ class SettingsSeeder extends Seeder
             ['key' => 'maintenance_mode',     'value' => 'false',                      'type' => 'boolean'],
         ];
 
+        // create-only: never overwrite values already changed in the app (safe on prod)
         foreach ($settings as $setting) {
-            DB::table('settings')->updateOrInsert(
-                ['key' => $setting['key']],
-                [
-                    'value'      => $setting['value'],
-                    'type'       => $setting['type'],
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]
-            );
+            if (DB::table('settings')->where('key', $setting['key'])->exists()) {
+                continue;
+            }
+            DB::table('settings')->insert([
+                'key'        => $setting['key'],
+                'value'      => $setting['value'],
+                'type'       => $setting['type'],
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
         }
     }
 }

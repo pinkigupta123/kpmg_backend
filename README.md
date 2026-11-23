@@ -74,8 +74,7 @@ Creates one user per role (safe to re-run). **Starting password for all: `Change
 | lead_users | super_admin | leadadmin@kpng.com | 9000000011 |
 | lead_users | sales_executive | sales@kpng.com | 9000000012 |
 
-A placeholder branch `BR-001 "Head Office"` is also created — edit it after logging in.
-Company settings (name, GST, etc.) are not seeded; add them to the `settings` table yourself.
+> The seeder now creates 2 companies (4 branches) and more users than this table shows. See **[DEPLOY_RUNBOOK.md](DEPLOY_RUNBOOK.md)** for the full list, the deploy order, and `php artisan setup:verify`.
 
 ### 4. Optimise & link storage
 

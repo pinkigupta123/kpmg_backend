@@ -80,19 +80,6 @@ class LeadOptionController extends Controller
         return response()->json($option);
     }
 
-    public function destroy(Request $request, int $id): JsonResponse
-    {
-        $this->requireAdmin($request);
-        $option = LeadOption::find($id);
-        if (!$option) {
-            return response()->json(['message' => 'Option not found.'], 404);
-        }
-        // Existing leads / staff keep the text they were saved with; only the dropdown entry goes away.
-        $option->delete();
-
-        return response()->json(['message' => 'Option deleted.']);
-    }
-
     protected function requireAdmin(Request $request): void
     {
         if ($request->user()->role !== 'super_admin') {

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Production Deploy Runbook - Backend</title>
+<style>
+  :root { --ink:#1b2430; --muted:#5b6675; --line:#dfe4ea; --bg:#f6f8fa; --accent:#2f4a6d; --warn:#b45309; --warnbg:#fff7ed; --ok:#166534; --okbg:#f0fdf4; --bad:#b91c1c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg); }
+  .wrap { max-width:900px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:28px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  h2 { font-size:20px; margin:36px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--line); }
+  h2 .n { display:inline-block; background:var(--accent); color:#fff; border-radius:50%; width:26px; height:26px; line-height:26px; text-align:center; font-size:14px; margin-right:8px; }
+  h3 { font-size:16px; margin:18px 0 6px; }
+  p { margin:8px 0; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin:12px 0; }
+  .note { border-left:4px solid var(--warn); background:var(--warnbg); padding:10px 14px; border-radius:6px; margin:12px 0; }
+  .ok { border-left:4px solid var(--ok); background:var(--okbg); padding:10px 14px; border-radius:6px; margin:12px 0; }
+  .code { position:relative; margin:8px 0 12px; }
+  pre { margin:0; background:#0f1722; color:#e6edf3; padding:14px 16px; border-radius:8px; overflow-x:auto; font:13px/1.55 ui-monospace,Menlo,Consolas,monospace; }
+  .copy { position:absolute; top:8px; right:8px; background:#243044; color:#cbd5e1; border:0; border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; }
+  .copy:hover { background:#34445d; }
+  code { background:#eef1f5; padding:1px 6px; border-radius:4px; font:13px ui-monospace,Menlo,Consolas,monospace; }
+  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:10px 0; font-size:14px; }
+  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { background:#eef1f5; font-weight:600; }
+  tr:last-child td { border-bottom:0; }
+  ul { margin:6px 0 6px 20px; padding:0; }
+  .toc a { color:var(--accent); text-decoration:none; }
+  .toc a:hover { text-decoration:underline; }
+  .toc ol { margin:6px 0 0 20px; padding:0; }
+  .choice { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:700px){ .choice{grid-template-columns:1fr;} }
+  .tag { font-size:12px; font-weight:700; padding:2px 8px; border-radius:10px; }
+  .tag.keep { background:#dcfce7; color:#166534; } .tag.wipe { background:#fee2e2; color:#b91c1c; }
+  @media print { .copy{display:none;} body{background:#fff;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Production deploy runbook</h1>
+<p class="sub">Backend (<code>kpmg_backend</code>) &middot; run everything from the <code>kpmg_backend</code> folder on the server, in order.</p>
+
+<div class="card toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#s0">Safety first</a></li>
+    <li><a href="#s1">Pull and install the latest code</a></li>
+    <li><a href="#s2">Clear stale caches</a></li>
+    <li><a href="#s3">Database (keep data or fresh start)</a></li>
+    <li><a href="#s4">Create base data and all users</a></li>
+    <li><a href="#s5">Link storage and rebuild caches</a></li>
+    <li><a href="#s6">Verify everything is set</a></li>
+    <li><a href="#s7">Troubleshooting users</a></li>
+    <li><a href="#s8">Frontend</a></li>
+  </ol>
+</div>
+
+<h2 id="s0"><span class="n">0</span>Safety first</h2>
+<div class="code"><button class="copy">Copy</button><pre>php artisan db:show                      # confirm DRIVER, HOST and DATABASE are what you expect
+php artisan migrate:status               # which migrations have run / are pending
+mysqldump -u USER -p DBNAME &gt; backup_$(date +%F_%H%M).sql   # backup before anything that changes data</pre></div>
+<div class="note"><strong>Warning:</strong> <code>migrate:fresh</code> DELETES every table. Use it only if you really want an empty start.</div>
+
+<h2 id="s1"><span class="n">1</span>Pull and install the latest code</h2>
+<div class="code"><button class="copy">Copy</button><pre>git pull origin main
+composer install --no-dev --optimize-autoloader</pre></div>
+
+<h2 id="s2"><span class="n">2</span>Clear stale caches (before migrate / seed)</h2>
+<p>An old cached config can make Laravel read the wrong <code>.env</code> or old settings. This is a common reason seeds "do not take".</p>
+<div class="code"><button class="copy">Copy</button><pre>php artisan optimize:clear</pre></div>
+
+<h2 id="s3"><span class="n">3</span>Database &mdash; choose ONE</h2>
+<div class="choice">
+  <div class="card">
+    <h3>A. Update existing DB <span class="tag keep">keeps data</span></h3>
+    <div class="code"><button class="copy">Copy</button><pre>php artisan migrate --force</pre></div>
+  </div>
+  <div class="card">
+    <h3>B. Fresh start <span class="tag wipe">WIPES ALL DATA</span></h3>
+    <div class="code"><button class="copy">Copy</button><pre>php artisan migrate:fresh --force</pre></div>
+  </div>
+</div>
+
+<h2 id="s4"><span class="n">4</span>Create base data and all users (single command)</h2>
+<div class="code"><button class="copy">Copy</button><pre>php artisan db:seed --class=ProductionSeeder --force</pre></div>
+<p>Create-only: safe to re-run, never resets existing passwords or job counters. It creates:</p>
+<ul>
+  <li><strong>2 companies &times; 2 branches</strong>
+    <ul>
+      <li>KPNG Technologies: BR-001 Karol Bagh, BR-002 Nehru Place</li>
+      <li>HP Showroom Pvt Ltd: BR-003 HP Showroom - Connaught Place, BR-004 HP Showroom - Saket</li>
+    </ul>
+  </li>
+  <li>Dropdown options (7 groups) and app settings (GST, currency, prefixes)</li>
+  <li>Staff users and Lead module users (table below)</li>
+</ul>
+
+<table>
+  <tr><th>Table</th><th>Role</th><th>Email</th><th>Branches</th></tr>
+  <tr><td>employees</td><td>super_admin</td><td>admin@kpng.com</td><td>BR-001</td></tr>
+  <tr><td>employees</td><td>branch_manager</td><td>manager@kpng.com</td><td>BR-001</td></tr>
+  <tr><td>employees</td><td>stock_manager</td><td>stock@kpng.com</td><td><strong>ALL 4 branches</strong></td></tr>
+  <tr><td>employees</td><td>employee (technician)</td><td>employee@kpng.com</td><td>BR-001 + BR-003 (one per company)</td></tr>
+  <tr><td>employees</td><td>employee</td><td>suresh@kpng.com</td><td>BR-002</td></tr>
+  <tr><td>employees</td><td>branch_manager</td><td>manager2@kpng.com</td><td>BR-003</td></tr>
+  <tr><td>lead_users</td><td>super_admin</td><td>leadadmin@kpng.com</td><td>&ndash;</td></tr>
+  <tr><td>lead_users</td><td>sales_executive</td><td>sales@kpng.com</td><td>&ndash;</td></tr>
+  <tr><td>lead_users</td><td>super_admin</td><td>admin@kpmgleadmanager.com</td><td>&ndash;</td></tr>
+  <tr><td>lead_users</td><td>sales_executive</td><td>exec1@kpmgleadmanager.com, exec2@kpmgleadmanager.com</td><td>&ndash;</td></tr>
+</table>
+<p>Starting password for all: <code>ChangeMe@123</code>. Each user must change it at first login.</p>
+<div class="note"><strong>Do NOT run plain <code>php artisan db:seed</code> on prod.</strong> That also loads demo customers, devices and stock.</div>
+
+<h2 id="s5"><span class="n">5</span>Link storage and rebuild caches</h2>
+<div class="code"><button class="copy">Copy</button><pre>php artisan storage:link                 # first deploy only (invoice photos are stored here)
+php artisan config:cache &amp;&amp; php artisan route:cache &amp;&amp; php artisan view:cache
+php artisan queue:restart                # only if a queue worker is running</pre></div>
+<p>Cron for the scheduler (lead follow-up reminders, daily 09:00 IST):</p>
+<div class="code"><button class="copy">Copy</button><pre>* * * * * cd /path/to/kpmg_backend &amp;&amp; php artisan schedule:run &gt;&gt; /dev/null 2&gt;&amp;1</pre></div>
+
+<h2 id="s6"><span class="n">6</span>Verify everything is set (read-only)</h2>
+<div class="code"><button class="copy">Copy</button><pre>php artisan setup:verify</pre></div>
+<p>Prints PASS / FAIL for each check and ends with <code>All checks passed</code> or the number of failures:</p>
+<ul>
+  <li>the connected DB, plus APP_ENV and the debug flag</li>
+  <li>required tables exist (including <code>employee_branch</code>)</li>
+  <li>both companies and all 4 branches exist, 2 per company</li>
+  <li>the 4 staff roles exist with the right role</li>
+  <li>stock manager can access ALL branches</li>
+  <li>technician has a branch in each company</li>
+  <li>every employee has at least one branch</li>
+  <li>lead users exist with the right roles</li>
+  <li>all 7 dropdown groups and key settings exist</li>
+  <li><code>public/storage</code> link exists</li>
+</ul>
+<h3>Manual spot checks</h3>
+<div class="code"><button class="copy">Copy</button><pre>php artisan db:show --counts                       # every table with row counts
+php artisan tinker --execute="dump(App\Models\Branch::pluck('name','code'), App\Models\Employee::pluck('role','email'), App\Models\LeadUser::pluck('role','email'));"
+php artisan tinker --execute="dump(App\Models\Employee::where('email','stock@kpng.com')-&gt;first()-&gt;allBranchIds());"   # expect 4 ids
+php artisan migrate:status                         # every line should say Ran</pre></div>
+<div class="ok">Then log in as <code>stock@kpng.com</code> and open Inventory &rarr; Add Stock. The Branch dropdown should list all 4 branches.</div>
+
+<h2 id="s7"><span class="n">7</span>If users were not created correctly</h2>
+<table>
+  <tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+  <tr><td><code>setup:verify</code> says a table is missing, or the seeder errors on <code>employee_branch</code></td><td>migrations not run after pulling</td><td><code>php artisan migrate --force</code>, then seed again</td></tr>
+  <tr><td>Seeder ran but users or branches look unchanged</td><td>wrong database, or cached config pointing to an old DB</td><td><code>php artisan optimize:clear</code>, <code>php artisan db:show</code>, re-seed</td></tr>
+  <tr><td>Stock manager or technician has only 1 branch</td><td>seeded with old code, or branches did not exist yet</td><td><code>git pull</code>, re-run step 4 (assignments are added, never removed)</td></tr>
+  <tr><td>Old demo data (HQ - TechFix Central, North Branch) still there</td><td>database existed before this setup</td><td>wipe with step 3B (after a backup), or edit them in the app</td></tr>
+  <tr><td><code>Duplicate entry</code> on seed</td><td>a company, branch or employee with the same code or email already exists with different data</td><td>inspect with <code>tinker</code>, fix or delete the conflicting row, re-seed</td></tr>
+  <tr><td>Invalid credentials after a successful first login</td><td>the user changed their password (forced at first login)</td><td>reset the password in the app, or in <code>tinker</code></td></tr>
+</table>
+
+<h2 id="s8"><span class="n">8</span>Frontend (<code>kpmg_techno</code>) after backend deploy</h2>
+<ul>
+  <li>Set <code>VITE_API_URL</code> to the prod API URL.</li>
+  <li>Optional: <code>VITE_SHOW_DEMO_CREDENTIALS=true</code> shows the demo-credentials card on the login page. Remove it before real users go live.</li>
+  <li><code>npm run build</code>, then deploy the output. Vite reads env vars at build time, so rebuild after any change.</li>
+</ul>
+
+</div>
+<script>
+  document.querySelectorAll('.copy').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = b.parentElement.querySelector('pre').innerText;
+      navigator.clipboard.writeText(t).then(function () {
+        b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1200);
+      });
+    });
+  });
+</script>
+</body>
+</html>
