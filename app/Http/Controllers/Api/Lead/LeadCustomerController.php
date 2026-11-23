@@ -35,7 +35,7 @@ class LeadCustomerController extends Controller
         }
 
         $filters = $request->only(['search', 'status', 'sort', 'executive_id', 'branch']);
-        $perPage  = (int) $request->input('per_page', 15);
+        $perPage  = max(1, min((int) $request->input('per_page', 15), 500)); // cap: protects the server from huge pages
 
         // Admin can filter by executive_id; sales executive always restricted to own leads
         if ($user->role === 'sales_executive') {
@@ -253,6 +253,39 @@ class LeadCustomerController extends Controller
         $this->customerService->addTimelineEvent($user, $id, $request->action, $request->remarks);
 
         return response()->json(['message' => 'Timeline event recorded successfully.']);
+    }
+
+    /**
+     * GET /lead/dashboard/leads — compact rows for the mobile dashboard, in ONE query.
+     * Only the columns the dashboard charts need (no notes/email/timelines, no Eloquent hydration),
+     * and the executive is limited to id/name/branch.
+     */
+    public function dashboardLeads(Request $request): JsonResponse
+    {
+        /** @var \App\Models\LeadUser $user */
+        $user = $request->user();
+
+        $rows = \Illuminate\Support\Facades\DB::table('lead_customers as c')
+            ->join('lead_users as u', 'u.id', '=', 'c.executive_id')
+            ->when($user->role === 'sales_executive', fn ($q) => $q->where('c.executive_id', $user->id))
+            ->orderByDesc('c.created_at')
+            ->get([
+                'c.id', 'c.executive_id', 'c.name', 'c.mobile', 'c.status', 'c.followup_date',
+                'c.interested_product', 'c.created_at', 'u.name as exec_name', 'u.branch as exec_branch',
+            ])
+            ->map(fn ($r) => [
+                'id'                 => $r->id,
+                'executive_id'       => $r->executive_id,
+                'name'               => $r->name,
+                'mobile'             => $r->mobile,
+                'status'             => $r->status,
+                'followup_date'      => $r->followup_date,
+                'interested_product' => $r->interested_product,
+                'created_at'         => \Illuminate\Support\Carbon::parse($r->created_at)->toIso8601String(),
+                'executive'          => ['id' => $r->executive_id, 'name' => $r->exec_name, 'branch' => $r->exec_branch],
+            ]);
+
+        return response()->json(['data' => $rows]);
     }
 
     public function dashboardStats(Request $request): JsonResponse

@@ -146,6 +146,7 @@ Route::prefix('lead')->group(function () {
 
         // Dashboard
         Route::get('/dashboard-stats',  [LeadCustomerController::class, 'dashboardStats']);
+        Route::get('/dashboard/leads',  [LeadCustomerController::class, 'dashboardLeads']);
 
         // Executives (admin only — enforced inside controller)
         Route::get('/executives',                    [LeadExecutiveController::class, 'index']);
